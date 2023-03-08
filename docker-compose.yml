@@ -1,0 +1,104 @@
+version: '3.9'
+services:
+
+  # astronauts microservice pod
+  astronauts-msvc:
+    build:
+      context: astronauts-msvc
+    ports:
+      - 7001:8000
+    environment:
+      KAFKA_URL: kafka:29092
+      MONGO_URL: mongodb://astronauts-msvc:8b9z0mE37Cv1OK5I@mongo:27017/astronauts
+      MONGO_DATABASE: astronauts
+      REDIS_URL: redis://redis:6379/0
+      UNIQUE_POD_ID: ILw7xElp3F9Dwc1o
+    depends_on:
+      - mongo
+      - redis
+    restart: always
+
+  # mongo cluster
+  mongo:
+    image: mongo
+    restart: always
+    volumes: 
+      - ./.tmp/mongo:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: sbH6Ob8IIdeSl2M65l4K8nGo8T4HuZDl
+  mongo-express:
+    image: mongo-express
+    restart: always
+    ports:
+      - 6003:8081
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://root:sbH6Ob8IIdeSl2M65l4K8nGo8T4HuZDl@mongo:27017/
+
+  # one time command to start mongo users if don't exist
+  mongo-init-users-and-dbs:
+    image: mongo
+    depends_on:
+      - mongo
+    command: "bash -c \"until mongosh \
+              --eval \\\"astronauts = db.getSiblingDB('astronauts'); if (astronauts.getUser('astronauts-msvc') == null) astronauts.createUser({user: 'astronauts-msvc', pwd: '8b9z0mE37Cv1OK5I', roles: ['readWrite']});\\\" \
+              mongodb://root:sbH6Ob8IIdeSl2M65l4K8nGo8T4HuZDl@mongo:27017 \
+              ; do sleep 2; done\""
+
+  # redis cluster
+  redis:
+    image: redis:7.0-alpine
+    command: redis-server --save 20 1 --loglevel warning
+    volumes: 
+      - ./.tmp/redis:/data
+    restart: always
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    environment:
+      REDIS_HOSTS: local:redis:6379:0
+    ports:
+      - 6001:8081
+    restart: always
+
+  # kafka cluster
+  zookeeper:
+    image: confluentinc/cp-zookeeper:5.2.4
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    restart: always
+  kafka:
+    image: confluentinc/cp-kafka:5.3.1
+    depends_on:
+      - zookeeper
+    volumes:
+      - ./.tmp/kafka:/var/lib/kafka/data
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    restart: always
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - 6002:8080
+    depends_on:
+      - zookeeper
+      - kafka
+    environment:
+      KAFKA_CLUSTERS_0_NAME: cluster0
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    restart: always
+
+  # one time command to start kafka topics if don't exist
+  kafka-init-topics:
+    image: confluentinc/cp-kafka:5.3.1
+    depends_on:
+      - kafka
+    command: "bash -c 'cub kafka-ready -b kafka:29092 1 30 && \
+             kafka-topics --zookeeper zookeeper:2181 --create --topic astronaut_created --partitions 1 --replication-factor 1 --if-not-exists && \
+             kafka-topics --zookeeper zookeeper:2181 --alter --topic astronaut_created --config cleanup.policy=compact'"
