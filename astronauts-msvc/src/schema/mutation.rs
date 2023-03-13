@@ -1,10 +1,9 @@
 use crate::domain::astronaut_controller::AstronautController;
 use crate::domain::astronaut_controller::AstronautControllerError;
-use crate::domain::Astronaut;
+use crate::domain::astronaut_model::CreateAstronautInput;
+use crate::domain::astronaut_model::UpdateAstronautInput;
 use async_graphql::Context;
 use async_graphql::Object;
-use chrono::DateTime;
-use chrono::Utc;
 
 pub struct MutationRoot;
 
@@ -13,11 +12,21 @@ impl MutationRoot {
     async fn create_astronaut(
         &self,
         ctx: &Context<'_>,
-        name: String,
-        birth_date: DateTime<Utc>,
-    ) -> Result<Astronaut, AstronautControllerError> {
+        input: CreateAstronautInput,
+    ) -> Result<String, AstronautControllerError> {
         ctx.data_unchecked::<AstronautController>()
-            .create_astronaut(Astronaut::new(name, birth_date))
+            .create_astronaut(input)
+            .await
+    }
+
+    async fn update_astronaut(
+        &self,
+        ctx: &Context<'_>,
+        id: String,
+        input: UpdateAstronautInput,
+    ) -> Result<String, AstronautControllerError> {
+        ctx.data_unchecked::<AstronautController>()
+            .update_astronaut(id, input)
             .await
     }
 }

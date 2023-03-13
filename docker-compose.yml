@@ -101,4 +101,6 @@ services:
       - kafka
     command: "bash -c 'cub kafka-ready -b kafka:29092 1 30 && \
              kafka-topics --zookeeper zookeeper:2181 --create --topic astronaut_created --partitions 1 --replication-factor 1 --if-not-exists && \
-             kafka-topics --zookeeper zookeeper:2181 --alter --topic astronaut_created --config cleanup.policy=compact'"
+             kafka-topics --zookeeper zookeeper:2181 --alter --topic astronaut_created --config cleanup.policy=compact && \
+             kafka-topics --zookeeper zookeeper:2181 --create --topic astronaut_updated --partitions 1 --replication-factor 1 --if-not-exists && \
+             kafka-topics --zookeeper zookeeper:2181 --alter --topic astronaut_updated --config cleanup.policy=compact'"

@@ -1,4 +1,2 @@
 pub mod astronaut_controller;
-mod model;
-
-pub use model::Astronaut;
+pub mod astronaut_model;

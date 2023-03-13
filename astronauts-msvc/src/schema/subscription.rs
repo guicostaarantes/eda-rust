@@ -1,5 +1,5 @@
 use crate::domain::astronaut_controller::AstronautController;
-use crate::domain::Astronaut;
+use crate::domain::astronaut_model::Astronaut;
 use async_graphql::Context;
 use async_graphql::Subscription;
 use tokio_stream::Stream;
