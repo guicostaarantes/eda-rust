@@ -2,6 +2,7 @@ use rdkafka::config::ClientConfig;
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::consumer::Consumer;
 use rdkafka::Message;
+use rdkafka::Timestamp;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -14,11 +15,30 @@ use tokio_stream::Stream;
 use tokio_stream::StreamExt;
 
 #[derive(Clone)]
+pub struct KafkaMessage {
+    timestamp: Timestamp,
+    payload: String,
+}
+
+impl KafkaMessage {
+    pub fn get_timestamp(&self) -> isize {
+        self.timestamp.to_millis().unwrap_or_else(|| {
+            println!("got none for a kafka timestamp");
+            0
+        }) as isize
+    }
+
+    pub fn get_payload(&self) -> String {
+        self.payload.to_owned()
+    }
+}
+
+#[derive(Clone)]
 pub struct KafkaConsumerImpl {
     kafka_url: String,
     group_id: String,
     consumers: Arc<Mutex<HashMap<String, Arc<StreamConsumer>>>>,
-    senders: Arc<Mutex<HashMap<String, Arc<Sender<String>>>>>,
+    senders: Arc<Mutex<HashMap<String, Arc<Sender<KafkaMessage>>>>>,
 }
 
 impl KafkaConsumerImpl {
@@ -66,7 +86,7 @@ impl KafkaConsumerImpl {
 }
 
 impl KafkaConsumerImpl {
-    fn get_sender(&self, topic: String, description: String) -> Arc<Sender<String>> {
+    fn get_sender(&self, topic: String, description: String) -> Arc<Sender<KafkaMessage>> {
         let identifier = self.get_identifier(topic, description);
 
         let mut all_senders = self.senders.lock().unwrap();
@@ -84,7 +104,7 @@ impl KafkaConsumerImpl {
 }
 
 impl KafkaConsumerImpl {
-    fn get_receiver(&self, topic: String, description: String) -> Receiver<String> {
+    fn get_receiver(&self, topic: String, description: String) -> Receiver<KafkaMessage> {
         let consumer = self.get_consumer(topic.clone(), description.clone());
         let sender = self.get_sender(topic.clone(), description.clone());
 
@@ -96,7 +116,10 @@ impl KafkaConsumerImpl {
                     match consumer.stream().next().await {
                         Some(Ok(msg)) => match msg.payload_view::<str>() {
                             Some(Ok(s)) => {
-                                match sender.send(s.to_string()) {
+                                match sender.send(KafkaMessage {
+                                    timestamp: msg.timestamp(),
+                                    payload: s.to_string(),
+                                }) {
                                     Err(err) => {
                                         println!("Error while sending message to channel: {}", err)
                                     }
@@ -125,7 +148,7 @@ impl KafkaConsumerImpl {
         &self,
         topic: &str,
         description: &str,
-    ) -> impl Stream<Item = Result<String, BroadcastStreamRecvError>> {
+    ) -> impl Stream<Item = Result<KafkaMessage, BroadcastStreamRecvError>> {
         let receiver = self.get_receiver(topic.to_string(), description.to_string());
         BroadcastStream::new(receiver)
     }

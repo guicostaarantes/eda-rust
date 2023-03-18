@@ -156,8 +156,10 @@ impl AstronautController {
 
             match results.0 {
                 Ok(Some(Ok(value))) => {
-                    let event =
-                        JsonSerializerImpl::deserialize::<AstronautCreatedEvent>(&value).unwrap();
+                    let event = JsonSerializerImpl::deserialize::<AstronautCreatedEvent>(
+                        &value.get_payload(),
+                    )
+                    .unwrap();
 
                     let astronaut = Astronaut {
                         id: event.id,
@@ -178,8 +180,10 @@ impl AstronautController {
 
             match results.1 {
                 Ok(Some(Ok(value))) => {
-                    let event =
-                        JsonSerializerImpl::deserialize::<AstronautUpdatedEvent>(&value).unwrap();
+                    let event = JsonSerializerImpl::deserialize::<AstronautUpdatedEvent>(
+                        &value.get_payload(),
+                    )
+                    .unwrap();
                     match self
                         .state
                         .update_one("astronauts", "_id", &event.id, &event)
@@ -203,13 +207,15 @@ impl AstronautController {
         self.listener
             .listen("astronaut_created", "graphql")
             .filter_map(|value| match value {
-                Ok(val) => match JsonSerializerImpl::deserialize::<Astronaut>(&val) {
-                    Ok(v) => Some(v),
-                    Err(err) => {
-                        println!("Error deserializing astronaut: {}", err);
-                        None
+                Ok(value) => {
+                    match JsonSerializerImpl::deserialize::<Astronaut>(&value.get_payload()) {
+                        Ok(v) => Some(v),
+                        Err(err) => {
+                            println!("Error deserializing astronaut: {}", err);
+                            None
+                        }
                     }
-                },
+                }
                 Err(err) => {
                     println!("Error in broadcast stream: {}", err);
                     None
