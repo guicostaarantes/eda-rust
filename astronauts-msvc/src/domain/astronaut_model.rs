@@ -52,7 +52,7 @@ pub struct CreateAstronautInput {
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct AstronautCreatedEvent {
-    #[serde(rename = "_id")]
+    #[serde(skip_serializing)]
     pub id: String,
     pub name: String,
     pub birth_date: DateTime<Utc>,
@@ -72,7 +72,7 @@ impl UpdateAstronautInput {
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct AstronautUpdatedEvent {
-    #[serde(rename = "_id")]
+    #[serde(skip_serializing)]
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
