@@ -1,8 +1,10 @@
+use async_graphql::futures_util::future::join_all;
 use rdkafka::config::ClientConfig;
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::consumer::Consumer;
 use rdkafka::Message;
 use rdkafka::Timestamp;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -14,7 +16,7 @@ use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::Stream;
 use tokio_stream::StreamExt;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct KafkaMessage {
     timestamp: Timestamp,
     payload: String,
@@ -70,7 +72,7 @@ impl KafkaConsumerImpl {
                 .set("group.id", &identifier)
                 .set("enable.auto.commit", "true")
                 .set("auto.commit.interval.ms", "1000")
-                .set("auto.offset.reset", "latest")
+                .set("auto.offset.reset", "earliest")
                 .create()
                 .expect("Consumer creation failed");
 
@@ -92,9 +94,7 @@ impl KafkaConsumerImpl {
         let mut all_senders = self.senders.lock().unwrap();
 
         if all_senders.get(&identifier).is_none() {
-            // TODO: check if 256 is enough for all use cases
-            // Possibly raise an alert if the channel gets half-full
-            let (tx, _rx) = channel(256);
+            let (tx, _rx) = channel(4096);
 
             all_senders.insert(identifier.clone(), Arc::new(tx));
         }
@@ -151,5 +151,114 @@ impl KafkaConsumerImpl {
     ) -> impl Stream<Item = Result<KafkaMessage, BroadcastStreamRecvError>> {
         let receiver = self.get_receiver(topic.to_string(), description.to_string());
         BroadcastStream::new(receiver)
+    }
+}
+
+enum StreamState {
+    HasMsg(KafkaMessage),
+    NoNewMsg,
+}
+
+struct StreamProps {
+    pub stream: BroadcastStream<KafkaMessage>,
+    pub state: StreamState,
+    pub topic_index: usize,
+}
+
+#[derive(Clone)]
+pub struct MultipleStreamMessage {
+    pub topic_index: usize,
+    pub message: KafkaMessage,
+}
+
+impl KafkaConsumerImpl {
+    pub fn listen_multiple(
+        &self,
+        topics: &[&str],
+        description: &str,
+    ) -> impl Stream<Item = Result<MultipleStreamMessage, BroadcastStreamRecvError>> {
+        let mut streams: Vec<_> = topics
+            .iter()
+            .map(|t| self.get_receiver(t.to_string(), description.to_string()))
+            .enumerate()
+            .map(|(i, r)| StreamProps {
+                stream: BroadcastStream::new(r),
+                state: StreamState::NoNewMsg,
+                topic_index: i,
+            })
+            .collect();
+
+        let (tx, rx) = channel(4096);
+
+        // for the first run we allow more time for all stream connections to stabilize
+        // in the following runs we use 1000ms
+        let mut timeout_ms = 5000;
+
+        tokio::spawn(async move {
+            loop {
+                let st = &mut streams;
+
+                let promises = st
+                    .iter_mut()
+                    .filter(|s| match s.state {
+                        StreamState::HasMsg(_) => false,
+                        StreamState::NoNewMsg => true,
+                    })
+                    .map(|s| async {
+                        s.state = match tokio::time::timeout(
+                            std::time::Duration::from_millis(timeout_ms),
+                            s.stream.next(),
+                        )
+                        .await
+                        {
+                            Ok(Some(Ok(msg))) => StreamState::HasMsg(msg),
+                            Ok(Some(Err(err))) => {
+                                println!("error in stream from kafka: {}", err);
+                                StreamState::NoNewMsg
+                            }
+                            Ok(None) => {
+                                println!("should never return this");
+                                StreamState::NoNewMsg
+                            }
+                            Err(_) => StreamState::NoNewMsg,
+                        };
+                    });
+
+                join_all(promises).await;
+
+                let chosen = st
+                    .iter_mut()
+                    .min_by(|a, b| match (&a.state, &b.state) {
+                        (StreamState::HasMsg(m1), StreamState::HasMsg(m2)) => {
+                            m1.get_timestamp().partial_cmp(&m2.get_timestamp()).unwrap()
+                        }
+                        (StreamState::HasMsg(_), StreamState::NoNewMsg) => Ordering::Less,
+                        (StreamState::NoNewMsg, StreamState::HasMsg(_)) => Ordering::Greater,
+                        _ => Ordering::Equal,
+                    })
+                    .unwrap();
+
+                match &chosen.state {
+                    StreamState::NoNewMsg => {
+                        timeout_ms = 1000;
+                    }
+                    StreamState::HasMsg(msg) => {
+                        timeout_ms = 1000;
+                        match tx.send(MultipleStreamMessage {
+                            topic_index: chosen.topic_index,
+                            message: msg.clone(),
+                        }) {
+                            Err(err) => {
+                                println!("Error while sending message to channel: {}", err)
+                            }
+                            _ => {}
+                        };
+                        chosen.state = StreamState::NoNewMsg;
+                    }
+                }
+            }
+        });
+
+        BroadcastStream::new(rx)
     }
 }

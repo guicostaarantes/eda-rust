@@ -52,6 +52,7 @@ pub struct CreateAstronautInput {
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct AstronautCreatedEvent {
+    #[serde(rename = "_id")]
     pub id: String,
     pub name: String,
     pub birth_date: DateTime<Utc>,
@@ -71,7 +72,7 @@ impl UpdateAstronautInput {
 
 #[derive(Clone, Deserialize, Serialize)]
 pub struct AstronautUpdatedEvent {
-    // TODO: inserting id instead of _id on mongo update_one
+    #[serde(rename = "_id")]
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,

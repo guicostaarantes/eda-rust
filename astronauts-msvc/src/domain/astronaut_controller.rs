@@ -143,60 +143,50 @@ impl AstronautController {
 
 impl AstronautController {
     pub async fn sync_events_to_state(&self) {
-        let mut stream1 = self.listener.listen("astronaut_created", "mongo");
-        let mut stream2 = self.listener.listen("astronaut_updated", "mongo");
+        let mut stream = self
+            .listener
+            .listen_multiple(&["astronaut_created", "astronaut_updated"], "mongo");
 
-        // TODO: this must change
-        // it should compare all the results from diff streams and apply them in timestamp order
-        loop {
-            let results = tokio::join!(
-                tokio::time::timeout(std::time::Duration::from_millis(1000), stream1.next()),
-                tokio::time::timeout(std::time::Duration::from_millis(1000), stream2.next()),
-            );
+        while let Some(r) = stream.next().await {
+            match r {
+                Ok(re) => match re.topic_index {
+                    0 => {
+                        let event = JsonSerializerImpl::deserialize::<AstronautCreatedEvent>(
+                            &re.message.get_payload(),
+                        )
+                        .unwrap();
 
-            match results.0 {
-                Ok(Some(Ok(value))) => {
-                    let event = JsonSerializerImpl::deserialize::<AstronautCreatedEvent>(
-                        &value.get_payload(),
-                    )
-                    .unwrap();
+                        let astronaut = Astronaut {
+                            id: event.id,
+                            name: event.name,
+                            birth_date: event.birth_date,
+                        };
 
-                    let astronaut = Astronaut {
-                        id: event.id,
-                        name: event.name,
-                        birth_date: event.birth_date,
-                    };
+                        match self.state.insert_one("astronauts", &astronaut).await {
+                            Err(err) => println!("Error inserting astronaut in state: {}", err),
+                            Ok(_) => {}
+                        };
+                    }
+                    1 => {
+                        let event = JsonSerializerImpl::deserialize::<AstronautUpdatedEvent>(
+                            &re.message.get_payload(),
+                        )
+                        .unwrap();
 
-                    match self.state.insert_one("astronauts", &astronaut).await {
-                        Err(err) => println!("Error inserting astronaut in state: {}", err),
-                        Ok(_) => {}
-                    };
-                }
-                Ok(Some(Err(err))) => {
-                    println!("Error in broadcast stream: {}", err);
-                }
-                _ => {}
-            }
-
-            match results.1 {
-                Ok(Some(Ok(value))) => {
-                    let event = JsonSerializerImpl::deserialize::<AstronautUpdatedEvent>(
-                        &value.get_payload(),
-                    )
-                    .unwrap();
-                    match self
-                        .state
-                        .update_one("astronauts", "_id", &event.id, &event)
-                        .await
-                    {
-                        Err(err) => println!("Error updating astronaut in state: {}", err),
-                        Ok(_) => {}
-                    };
-                }
-                Ok(Some(Err(err))) => {
-                    println!("Error in broadcast stream: {}", err);
-                }
-                _ => {}
+                        match self
+                            .state
+                            .update_one("astronauts", "_id", &event.id, &event)
+                            .await
+                        {
+                            Err(err) => println!("Error updating astronaut in state: {}", err),
+                            Ok(_) => {}
+                        };
+                    }
+                    _ => {
+                        println!("unsupported case");
+                    }
+                },
+                Err(err) => println!("error in broadcast stream: {}", err),
             }
         }
     }
