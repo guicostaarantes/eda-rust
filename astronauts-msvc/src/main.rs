@@ -4,9 +4,14 @@ mod schema;
 
 use std::env;
 
+use crate::domain::astronaut_controller::AstronautController;
+use crate::providers::emitter::KafkaEmitterImpl;
+use crate::providers::listener::KafkaConsumerImpl;
+use crate::providers::state::MongoStateImpl;
 use crate::schema::AstronautsSchema;
 use crate::schema::MutationRoot;
 use crate::schema::QueryRoot;
+use crate::schema::SubscriptionRoot;
 use async_graphql::http::GraphiQLSource;
 use async_graphql::Schema;
 use async_graphql_axum::GraphQLRequest;
@@ -18,11 +23,6 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
 use axum::Server;
-use domain::astronaut_controller::AstronautController;
-use providers::emitter::KafkaEmitterImpl;
-use providers::listener::KafkaConsumerImpl;
-use providers::state::MongoStateImpl;
-use schema::SubscriptionRoot;
 
 async fn graphql_handler(
     schema: Extension<AstronautsSchema>,
