@@ -1,5 +1,6 @@
 use async_graphql::InputObject;
 use async_graphql::Object;
+use async_graphql::ID;
 use chrono::DateTime;
 use chrono::Datelike;
 use chrono::TimeZone;
@@ -12,14 +13,15 @@ use serde::Serialize;
 pub struct Astronaut {
     pub id: String,
     pub name: String,
+    pub password: String,
     pub birth_date: DateTime<Utc>,
 }
 
 // GraphQL fields
 #[Object]
 impl Astronaut {
-    async fn id(&self) -> String {
-        self.id.clone()
+    async fn id(&self) -> ID {
+        ID(self.id.clone())
     }
 
     async fn name(&self) -> String {
@@ -49,18 +51,20 @@ impl Astronaut {
 #[derive(InputObject)]
 pub struct CreateAstronautInput {
     pub name: String,
+    pub password: String,
     pub birth_date: DateTime<Utc>,
 }
 
 #[derive(InputObject)]
 pub struct UpdateAstronautInput {
     pub name: Option<String>,
+    pub password: Option<String>,
     pub birth_date: Option<DateTime<Utc>>,
 }
 
 impl UpdateAstronautInput {
     pub fn is_empty(&self) -> bool {
-        self.name == None && self.birth_date == None
+        self.name == None && self.password == None && self.birth_date == None
     }
 }
 
@@ -70,6 +74,7 @@ pub struct AstronautDocument {
     #[serde(rename = "_id")]
     pub id: String,
     pub name: String,
+    pub password: String,
     pub birth_date: DateTime<Utc>,
 }
 
@@ -77,6 +82,8 @@ pub struct AstronautDocument {
 pub struct AstronautUpdatedDocument {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub birth_date: Option<DateTime<Utc>>,
 }
@@ -86,6 +93,7 @@ pub struct AstronautUpdatedDocument {
 pub struct AstronautCreatedEvent {
     pub id: String,
     pub name: String,
+    pub password: String,
     pub birth_date: DateTime<Utc>,
 }
 
@@ -94,6 +102,8 @@ pub struct AstronautUpdatedEvent {
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub birth_date: Option<DateTime<Utc>>,
 }
@@ -104,6 +114,7 @@ impl From<&AstronautDocument> for Astronaut {
         Self {
             id: input.id.clone(),
             name: input.name.clone(),
+            password: input.password.clone(),
             birth_date: input.birth_date.clone(),
         }
     }
@@ -114,6 +125,7 @@ impl From<&AstronautCreatedEvent> for AstronautDocument {
         Self {
             id: input.id.clone(),
             name: input.name.clone(),
+            password: input.password.clone(),
             birth_date: input.birth_date.clone(),
         }
     }
@@ -123,6 +135,7 @@ impl From<&AstronautUpdatedEvent> for AstronautUpdatedDocument {
     fn from(input: &AstronautUpdatedEvent) -> Self {
         Self {
             name: input.name.clone(),
+            password: input.password.clone(),
             birth_date: input.birth_date.clone(),
         }
     }

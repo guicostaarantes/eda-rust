@@ -6,6 +6,8 @@ use crate::domain::astronaut_model::AstronautUpdatedEvent;
 use crate::domain::astronaut_model::CreateAstronautInput;
 use crate::domain::astronaut_model::UpdateAstronautInput;
 use crate::providers::emitter::KafkaEmitterImpl;
+use crate::providers::hash::HashImpl;
+use crate::providers::hash::HashImplError;
 use crate::providers::json::JsonSerializerImpl;
 use crate::providers::listener::KafkaConsumerImpl;
 use crate::providers::state::MongoStateImpl;
@@ -19,6 +21,8 @@ use tokio_stream::StreamExt;
 pub enum AstronautControllerError {
     #[error(transparent)]
     EmitterImplError(#[from] rdkafka::error::KafkaError),
+    #[error(transparent)]
+    HashImplError(#[from] HashImplError),
     #[error(transparent)]
     JsonSerializerImplError(#[from] serde_json::Error),
     #[error(transparent)]
@@ -88,9 +92,12 @@ impl AstronautController {
             _ => Ok(()),
         }?;
 
+        let hashed_password = HashImpl::hash(&input.password)?;
+
         let event = AstronautCreatedEvent {
             id: id.clone(),
             name: input.name,
+            password: hashed_password,
             birth_date: input.birth_date,
         };
 
@@ -139,11 +146,21 @@ impl AstronautController {
             }?;
         }
 
+        let hashed_password = match &input.password {
+            Some(password) => match HashImpl::hash(password) {
+                Ok(hashed) => Ok(Some(hashed)),
+                Err(err) => Err(AstronautControllerError::HashImplError(err)),
+            },
+            None => Ok(None),
+        }?;
+
         let event = AstronautUpdatedEvent {
             id: id.clone(),
             name: input.name,
+            password: hashed_password,
             birth_date: input.birth_date,
         };
+
         let payload = JsonSerializerImpl::serialize(&event)?;
 
         self.emitter

@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+argon2 = "0.5.0"
 async-graphql = { version = "5.0.6", features = ["chrono", "uuid"] }
 async-graphql-axum = "5.0.6"
 axum = { version = "0.6.4", features = ["headers"] }
