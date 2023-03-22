@@ -23,6 +23,7 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
 use axum::Server;
+use providers::mem_state::RedisMemStateImpl;
 
 async fn graphql_handler(
     schema: Extension<AstronautsSchema>,
@@ -44,10 +45,11 @@ async fn graphiql() -> impl IntoResponse {
 async fn main() {
     pretty_env_logger::init_timed();
 
-    let kafka_url = env::var("KAFKA_URL").expect("KAFKA_URL env var not set");
     let unique_pod_id = env::var("UNIQUE_POD_ID").expect("UNIQUE_POD_ID env var not set");
+    let kafka_url = env::var("KAFKA_URL").expect("KAFKA_URL env var not set");
     let mongo_url = env::var("MONGO_URL").expect("MONGO_URL env var not set");
     let mongo_database = env::var("MONGO_DATABASE").expect("MONGO_DATABASE env var not set");
+    let redis_url = env::var("REDIS_URL").expect("REDIS_URL env var not set");
 
     let emitter =
         KafkaEmitterImpl::new(&kafka_url).expect("could not connect to kafka as a producer");
@@ -55,7 +57,8 @@ async fn main() {
     let state = MongoStateImpl::new(&mongo_url, &mongo_database)
         .await
         .expect("could not connect to mongo");
-    let astronaut_controller = AstronautController::new(emitter, listener, state);
+    let mem_state = RedisMemStateImpl::new(&redis_url).expect("could not connect to redis");
+    let astronaut_controller = AstronautController::new(emitter, listener, state, mem_state);
 
     let astronaut_controller_sync = astronaut_controller.clone();
     tokio::spawn(async move { astronaut_controller_sync.sync_events_to_state().await });

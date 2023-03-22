@@ -4,12 +4,15 @@ use crate::domain::astronaut_model::AstronautDocument;
 use crate::domain::astronaut_model::AstronautUpdatedDocument;
 use crate::domain::astronaut_model::AstronautUpdatedEvent;
 use crate::domain::astronaut_model::CreateAstronautInput;
+use crate::domain::astronaut_model::GetAstronautCredentialsInput;
 use crate::domain::astronaut_model::UpdateAstronautInput;
 use crate::providers::emitter::KafkaEmitterImpl;
 use crate::providers::hash::HashImpl;
 use crate::providers::hash::HashImplError;
 use crate::providers::json::JsonSerializerImpl;
 use crate::providers::listener::KafkaConsumerImpl;
+use crate::providers::mem_state::RedisMemStateImpl;
+use crate::providers::random::RandomImpl;
 use crate::providers::state::MongoStateImpl;
 use log::error;
 use log::info;
@@ -26,6 +29,8 @@ pub enum AstronautControllerError {
     #[error(transparent)]
     JsonSerializerImplError(#[from] serde_json::Error),
     #[error(transparent)]
+    MemStateImplError(#[from] redis::RedisError),
+    #[error(transparent)]
     StateImplError(#[from] mongodb::error::Error),
     #[error("astronaut not found")]
     AstronautNotFound,
@@ -33,6 +38,10 @@ pub enum AstronautControllerError {
     AstronautWithNameExists,
     #[error("no fields to update")]
     NoFieldsToUpdate,
+    #[error("password does not match")]
+    PasswordDoesNotMatch,
+    #[error("token not found")]
+    TokenNotFound,
 }
 
 #[derive(Clone)]
@@ -40,6 +49,7 @@ pub struct AstronautController {
     emitter: KafkaEmitterImpl,
     listener: KafkaConsumerImpl,
     state: MongoStateImpl,
+    mem_state: RedisMemStateImpl,
 }
 
 impl AstronautController {
@@ -47,11 +57,13 @@ impl AstronautController {
         emitter: KafkaEmitterImpl,
         listener: KafkaConsumerImpl,
         state: MongoStateImpl,
+        mem_state: RedisMemStateImpl,
     ) -> Self {
         Self {
             emitter,
             listener,
             state,
+            mem_state,
         }
     }
 }
@@ -170,6 +182,53 @@ impl AstronautController {
         info!("astronaut updated with id {}", id);
 
         Ok(id)
+    }
+}
+
+impl AstronautController {
+    pub async fn get_astronaut_credentials(
+        &self,
+        input: GetAstronautCredentialsInput,
+    ) -> Result<String, AstronautControllerError> {
+        let astronaut = match self
+            .state
+            .find_one_by_field::<AstronautDocument>("astronauts", "name", &input.name)
+            .await
+        {
+            Err(err) => Err(AstronautControllerError::StateImplError(err)),
+            Ok(None) => Err(AstronautControllerError::AstronautNotFound),
+            Ok(Some(astronaut)) => Ok(astronaut),
+        }?;
+
+        match HashImpl::verify(&input.password, &astronaut.password) {
+            Ok(_) => Ok(()),
+            Err(_) => Err(AstronautControllerError::PasswordDoesNotMatch),
+        }?;
+
+        let token = RandomImpl::string(64);
+
+        self.mem_state
+            .set(&token, &astronaut.id, Some(3600))
+            .await?;
+
+        Ok(token)
+    }
+}
+
+impl AstronautController {
+    pub async fn check_astronaut_credentials(
+        &self,
+        token: String,
+    ) -> Result<String, AstronautControllerError> {
+        let astronaut_id = match self.mem_state.get(&token).await {
+            Ok(id) => Ok(id),
+            Err(err) => match err.kind() {
+                redis::ErrorKind::TypeError => Err(AstronautControllerError::TokenNotFound),
+                _ => Err(AstronautControllerError::MemStateImplError(err)),
+            },
+        }?;
+
+        Ok(astronaut_id)
     }
 }
 

@@ -56,6 +56,12 @@ pub struct CreateAstronautInput {
 }
 
 #[derive(InputObject)]
+pub struct GetAstronautCredentialsInput {
+    pub name: String,
+    pub password: String,
+}
+
+#[derive(InputObject)]
 pub struct UpdateAstronautInput {
     pub name: Option<String>,
     pub password: Option<String>,

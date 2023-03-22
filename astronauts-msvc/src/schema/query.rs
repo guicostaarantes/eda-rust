@@ -8,6 +8,16 @@ pub struct QueryRoot;
 
 #[Object]
 impl QueryRoot {
+    async fn check_astronaut_credentials(
+        &self,
+        ctx: &Context<'_>,
+        token: String,
+    ) -> Result<String, AstronautControllerError> {
+        ctx.data_unchecked::<AstronautController>()
+            .check_astronaut_credentials(token)
+            .await
+    }
+
     async fn astronaut_by_id(
         &self,
         ctx: &Context<'_>,

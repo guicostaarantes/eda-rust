@@ -14,7 +14,9 @@ chrono = { version = "0.4.23", features = ["serde"] }
 log = "0.4.17"
 mongodb = "2.4.0"
 pretty_env_logger = "0.4.0"
+rand = "0.8.5"
 rdkafka = "0.29.0"
+redis = { version = "0.22.3", features = ["aio", "tokio-comp"] }
 serde = "1.0.152"
 serde_json = "1.0.93"
 thiserror = "1.0.38"
