@@ -1,6 +1,6 @@
-use crate::domain::astronaut_controller::AstronautController;
-use crate::domain::astronaut_controller::AstronautControllerError;
 use crate::domain::astronaut_model::Astronaut;
+use crate::domain::astronaut_querier::AstronautQuerier;
+use crate::domain::astronaut_querier::AstronautQuerierError;
 use async_graphql::Context;
 use async_graphql::Object;
 
@@ -12,8 +12,8 @@ impl QueryRoot {
         &self,
         ctx: &Context<'_>,
         token: String,
-    ) -> Result<String, AstronautControllerError> {
-        ctx.data_unchecked::<AstronautController>()
+    ) -> Result<String, AstronautQuerierError> {
+        ctx.data_unchecked::<AstronautQuerier>()
             .check_astronaut_credentials(token)
             .await
     }
@@ -22,8 +22,8 @@ impl QueryRoot {
         &self,
         ctx: &Context<'_>,
         id: String,
-    ) -> Result<Option<Astronaut>, AstronautControllerError> {
-        ctx.data_unchecked::<AstronautController>()
+    ) -> Result<Option<Astronaut>, AstronautQuerierError> {
+        ctx.data_unchecked::<AstronautQuerier>()
             .get_astronaut_by_id(id)
             .await
     }

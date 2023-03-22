@@ -1,5 +1,5 @@
-use crate::domain::astronaut_controller::AstronautController;
-use crate::domain::astronaut_controller::AstronautControllerError;
+use crate::domain::astronaut_commander::AstronautCommander;
+use crate::domain::astronaut_commander::AstronautCommanderError;
 use crate::domain::astronaut_model::CreateAstronautInput;
 use crate::domain::astronaut_model::GetAstronautCredentialsInput;
 use crate::domain::astronaut_model::UpdateAstronautInput;
@@ -14,8 +14,8 @@ impl MutationRoot {
         &self,
         ctx: &Context<'_>,
         input: CreateAstronautInput,
-    ) -> Result<String, AstronautControllerError> {
-        ctx.data_unchecked::<AstronautController>()
+    ) -> Result<String, AstronautCommanderError> {
+        ctx.data_unchecked::<AstronautCommander>()
             .create_astronaut(input)
             .await
     }
@@ -25,8 +25,8 @@ impl MutationRoot {
         ctx: &Context<'_>,
         id: String,
         input: UpdateAstronautInput,
-    ) -> Result<String, AstronautControllerError> {
-        ctx.data_unchecked::<AstronautController>()
+    ) -> Result<String, AstronautCommanderError> {
+        ctx.data_unchecked::<AstronautCommander>()
             .update_astronaut(id, input)
             .await
     }
@@ -35,8 +35,8 @@ impl MutationRoot {
         &self,
         ctx: &Context<'_>,
         input: GetAstronautCredentialsInput,
-    ) -> Result<String, AstronautControllerError> {
-        ctx.data_unchecked::<AstronautController>()
+    ) -> Result<String, AstronautCommanderError> {
+        ctx.data_unchecked::<AstronautCommander>()
             .get_astronaut_credentials(input)
             .await
     }

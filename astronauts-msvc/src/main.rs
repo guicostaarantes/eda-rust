@@ -4,7 +4,9 @@ mod schema;
 
 use std::env;
 
-use crate::domain::astronaut_controller::AstronautController;
+use crate::domain::astronaut_commander::AstronautCommander;
+use crate::domain::astronaut_querier::AstronautQuerier;
+use crate::domain::astronaut_synchronizer::AstronautSynchronizer;
 use crate::providers::emitter::KafkaEmitterImpl;
 use crate::providers::listener::KafkaConsumerImpl;
 use crate::providers::state::MongoStateImpl;
@@ -58,13 +60,18 @@ async fn main() {
         .await
         .expect("could not connect to mongo");
     let mem_state = RedisMemStateImpl::new(&redis_url).expect("could not connect to redis");
-    let astronaut_controller = AstronautController::new(emitter, listener, state, mem_state);
 
-    let astronaut_controller_sync = astronaut_controller.clone();
-    tokio::spawn(async move { astronaut_controller_sync.sync_events_to_state().await });
+    let astronaut_commander =
+        AstronautCommander::new(emitter.clone(), state.clone(), mem_state.clone());
+    let astronaut_querier =
+        AstronautQuerier::new(listener.clone(), state.clone(), mem_state.clone());
+    let astronaut_synchronizer = AstronautSynchronizer::new(listener, state, mem_state);
+
+    tokio::spawn(async move { astronaut_synchronizer.sync_events_to_state().await });
 
     let schema = Schema::build(QueryRoot, MutationRoot, SubscriptionRoot)
-        .data(astronaut_controller)
+        .data(astronaut_commander)
+        .data(astronaut_querier)
         // .limit_depth(5) // TODO: add this is production only
         .finish();
 
