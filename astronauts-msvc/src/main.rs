@@ -14,13 +14,15 @@ use crate::schema::AstronautsSchema;
 use crate::schema::MutationRoot;
 use crate::schema::QueryRoot;
 use crate::schema::SubscriptionRoot;
-use async_graphql::http::GraphiQLSource;
+use async_graphql::http::playground_source;
+use async_graphql::http::GraphQLPlaygroundConfig;
 use async_graphql::Schema;
 use async_graphql_axum::GraphQLRequest;
 use async_graphql_axum::GraphQLResponse;
 use async_graphql_axum::GraphQLSubscription;
 use axum::extract::Extension;
-use axum::response;
+use axum::headers::HeaderMap;
+use axum::response::Html;
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
@@ -34,13 +36,10 @@ async fn graphql_handler(
     schema.execute(req.into_inner()).await.into()
 }
 
-async fn graphiql() -> impl IntoResponse {
-    response::Html(
-        GraphiQLSource::build()
-            .endpoint("/")
-            .subscription_endpoint("/ws")
-            .finish(),
-    )
+async fn graphql_playground() -> impl IntoResponse {
+    Html(playground_source(
+        GraphQLPlaygroundConfig::new("/").subscription_endpoint("/ws"),
+    ))
 }
 
 #[tokio::main]
@@ -76,7 +75,7 @@ async fn main() {
         .finish();
 
     let app = Router::new()
-        .route("/", get(graphiql).post(graphql_handler))
+        .route("/", get(graphql_playground).post(graphql_handler))
         .route_service("/ws", GraphQLSubscription::new(schema.clone()))
         .layer(Extension(schema));
 
