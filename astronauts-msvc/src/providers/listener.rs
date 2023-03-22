@@ -191,9 +191,9 @@ impl KafkaConsumerImpl {
 
         let (tx, rx) = channel(4096);
 
-        // for the first run we allow more time for all stream connections to stabilize
-        // in the following runs we use 1000ms
-        let mut timeout_ms = 5000;
+        // TODO: fetch the state of each consumer and only loop below when all are stable
+        // allowing the consumers time to become stable
+        let mut timeout_ms = 10000;
 
         tokio::spawn(async move {
             loop {
