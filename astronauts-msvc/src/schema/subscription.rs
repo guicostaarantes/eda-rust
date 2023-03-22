@@ -1,5 +1,6 @@
 use crate::domain::astronaut_model::Astronaut;
 use crate::domain::astronaut_querier::AstronautQuerier;
+use crate::domain::astronaut_querier::AstronautQuerierError;
 use async_graphql::Context;
 use async_graphql::Subscription;
 use tokio_stream::Stream;
@@ -8,11 +9,13 @@ pub struct SubscriptionRoot;
 
 #[Subscription]
 impl SubscriptionRoot {
-    async fn last_astronaut_created<'a>(
-        &'a self,
-        ctx: &Context<'a>,
-    ) -> impl Stream<Item = Astronaut> + 'a {
+    async fn astronaut_by_id(
+        &self,
+        ctx: &Context<'_>,
+        id: String,
+    ) -> Result<impl Stream<Item = Astronaut>, AstronautQuerierError> {
         ctx.data_unchecked::<AstronautQuerier>()
-            .subscribe_to_astronaut_created()
+            .get_astronaut_by_id_stream(id)
+            .await
     }
 }

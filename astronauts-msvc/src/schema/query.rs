@@ -22,7 +22,7 @@ impl QueryRoot {
         &self,
         ctx: &Context<'_>,
         id: String,
-    ) -> Result<Option<Astronaut>, AstronautQuerierError> {
+    ) -> Result<Astronaut, AstronautQuerierError> {
         ctx.data_unchecked::<AstronautQuerier>()
             .get_astronaut_by_id(id)
             .await

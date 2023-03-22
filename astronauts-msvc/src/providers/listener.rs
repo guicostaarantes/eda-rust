@@ -189,7 +189,7 @@ impl KafkaConsumerImpl {
             })
             .collect();
 
-        let (tx, rx) = channel(4096);
+        let (tx, rx) = channel(32);
 
         // TODO: fetch the state of each consumer and only loop below when all are stable
         // allowing the consumers time to become stable

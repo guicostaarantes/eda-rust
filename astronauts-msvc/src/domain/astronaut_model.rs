@@ -146,3 +146,14 @@ impl From<&AstronautUpdatedEvent> for AstronautUpdatedDocument {
         }
     }
 }
+
+impl Astronaut {
+    pub fn apply_update_event(&self, event: &AstronautUpdatedEvent) -> Self {
+        Self {
+            id: self.id.clone(),
+            name: event.name.clone().unwrap_or(self.name.clone()),
+            password: event.password.clone().unwrap_or(self.password.clone()),
+            birth_date: event.birth_date.clone().unwrap_or(self.birth_date.clone()),
+        }
+    }
+}
