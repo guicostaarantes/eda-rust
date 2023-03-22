@@ -7,14 +7,15 @@ use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 
-#[derive(Clone, Deserialize, Serialize)]
+// Pure types for domain use
+#[derive(Clone)]
 pub struct Astronaut {
-    #[serde(rename = "_id")]
     pub id: String,
     pub name: String,
     pub birth_date: DateTime<Utc>,
 }
 
+// GraphQL fields
 #[Object]
 impl Astronaut {
     async fn id(&self) -> String {
@@ -44,16 +45,9 @@ impl Astronaut {
     }
 }
 
+// GraphQL input types
 #[derive(InputObject)]
 pub struct CreateAstronautInput {
-    pub name: String,
-    pub birth_date: DateTime<Utc>,
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-pub struct AstronautCreatedEvent {
-    #[serde(skip_serializing)]
-    pub id: String,
     pub name: String,
     pub birth_date: DateTime<Utc>,
 }
@@ -70,12 +64,66 @@ impl UpdateAstronautInput {
     }
 }
 
+// Mongo types
+#[derive(Clone, Deserialize, Serialize)]
+pub struct AstronautDocument {
+    #[serde(rename = "_id")]
+    pub id: String,
+    pub name: String,
+    pub birth_date: DateTime<Utc>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub struct AstronautUpdatedDocument {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub birth_date: Option<DateTime<Utc>>,
+}
+
+// Kafka types
+#[derive(Clone, Deserialize, Serialize)]
+pub struct AstronautCreatedEvent {
+    pub id: String,
+    pub name: String,
+    pub birth_date: DateTime<Utc>,
+}
+
 #[derive(Clone, Deserialize, Serialize)]
 pub struct AstronautUpdatedEvent {
-    #[serde(skip_serializing)]
     pub id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub birth_date: Option<DateTime<Utc>>,
+}
+
+// Transformation between types
+impl From<&AstronautDocument> for Astronaut {
+    fn from(input: &AstronautDocument) -> Self {
+        Self {
+            id: input.id.clone(),
+            name: input.name.clone(),
+            birth_date: input.birth_date.clone(),
+        }
+    }
+}
+
+impl From<&AstronautCreatedEvent> for AstronautDocument {
+    fn from(input: &AstronautCreatedEvent) -> Self {
+        Self {
+            id: input.id.clone(),
+            name: input.name.clone(),
+            birth_date: input.birth_date.clone(),
+        }
+    }
+}
+
+impl From<&AstronautUpdatedEvent> for AstronautUpdatedDocument {
+    fn from(input: &AstronautUpdatedEvent) -> Self {
+        Self {
+            name: input.name.clone(),
+            birth_date: input.birth_date.clone(),
+        }
+    }
 }

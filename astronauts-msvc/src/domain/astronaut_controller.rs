@@ -1,5 +1,7 @@
 use crate::domain::astronaut_model::Astronaut;
 use crate::domain::astronaut_model::AstronautCreatedEvent;
+use crate::domain::astronaut_model::AstronautDocument;
+use crate::domain::astronaut_model::AstronautUpdatedDocument;
 use crate::domain::astronaut_model::AstronautUpdatedEvent;
 use crate::domain::astronaut_model::CreateAstronautInput;
 use crate::domain::astronaut_model::UpdateAstronautInput;
@@ -57,10 +59,11 @@ impl AstronautController {
     ) -> Result<Option<Astronaut>, AstronautControllerError> {
         match self
             .state
-            .find_one_by_id::<Astronaut>("astronauts", &id)
+            .find_one_by_id::<AstronautDocument>("astronauts", &id)
             .await
         {
-            Ok(result) => Ok(result),
+            Ok(Some(v)) => Ok(Some(Astronaut::from(&v))),
+            Ok(None) => Ok(None),
             Err(err) => Err(AstronautControllerError::StateImplError(err)),
         }
     }
@@ -77,7 +80,7 @@ impl AstronautController {
 
         match self
             .state
-            .find_one_by_field::<Astronaut>("astronauts", "name", &input.name)
+            .find_one_by_field::<AstronautDocument>("astronauts", "name", &input.name)
             .await
         {
             Err(err) => Err(AstronautControllerError::StateImplError(err)),
@@ -112,7 +115,7 @@ impl AstronautController {
 
         match self
             .state
-            .find_one_by_id::<Astronaut>("astronauts", &id)
+            .find_one_by_id::<AstronautDocument>("astronauts", &id)
             .await
         {
             Err(err) => Err(AstronautControllerError::StateImplError(err)),
@@ -127,7 +130,7 @@ impl AstronautController {
         if let Some(name) = &input.name {
             match self
                 .state
-                .find_one_by_field::<Astronaut>("astronauts", "name", &name)
+                .find_one_by_field::<AstronautDocument>("astronauts", "name", &name)
                 .await
             {
                 Err(err) => Err(AstronautControllerError::StateImplError(err)),
@@ -168,26 +171,18 @@ impl AstronautController {
                         )
                         .unwrap();
 
-                        info!(
-                            "created astronaut syncing to mongo with id {} name {}",
-                            event.id, event.name
-                        );
+                        info!("created astronaut syncing to mongo with id {}", event.id);
 
-                        let astronaut = Astronaut {
-                            id: event.id.clone(),
-                            name: event.name.clone(),
-                            birth_date: event.birth_date,
-                        };
-
-                        match self.state.insert_one("astronauts", &astronaut).await {
+                        match self
+                            .state
+                            .insert_one("astronauts", &AstronautDocument::from(&event))
+                            .await
+                        {
                             Err(err) => error!("error inserting astronaut in state: {}", err),
                             Ok(_) => {}
                         };
 
-                        info!(
-                            "created astronaut synced to mongo with id {} name {}",
-                            event.id, event.name
-                        );
+                        info!("created astronaut synced to mongo with id {}", event.id);
                     }
                     1 => {
                         let event = JsonSerializerImpl::deserialize::<AstronautUpdatedEvent>(
@@ -195,26 +190,23 @@ impl AstronautController {
                         )
                         .unwrap();
 
-                        info!(
-                            "updated astronaut syncing to mongo with id {} name {}",
-                            event.id,
-                            event.name.clone().unwrap_or("".to_string())
-                        );
+                        info!("updated astronaut syncing to mongo with id {}", event.id);
 
                         match self
                             .state
-                            .update_one("astronauts", "_id", &event.id, &event)
+                            .update_one(
+                                "astronauts",
+                                "_id",
+                                &event.id,
+                                &AstronautUpdatedDocument::from(&event),
+                            )
                             .await
                         {
                             Err(err) => error!("Error updating astronaut in state: {}", err),
                             Ok(_) => {}
                         };
 
-                        info!(
-                            "updated astronaut synced to mongo with id {} name {}",
-                            event.id,
-                            event.name.clone().unwrap_or("".to_string()),
-                        );
+                        info!("updated astronaut synced to mongo with id {}", event.id);
                     }
                     _ => {
                         error!("unsupported case");
@@ -232,8 +224,9 @@ impl AstronautController {
             .listen("astronaut_created", "graphql")
             .filter_map(|value| match value {
                 Ok(value) => {
-                    match JsonSerializerImpl::deserialize::<Astronaut>(&value.get_payload()) {
-                        Ok(v) => Some(v),
+                    match JsonSerializerImpl::deserialize::<AstronautDocument>(&value.get_payload())
+                    {
+                        Ok(v) => Some(Astronaut::from(&v)),
                         Err(err) => {
                             error!("error deserializing astronaut: {}", err);
                             None
