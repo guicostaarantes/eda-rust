@@ -7,6 +7,8 @@ use crate::providers::emitter::KafkaEmitterImpl;
 use crate::providers::json::JsonSerializerImpl;
 use crate::providers::listener::KafkaConsumerImpl;
 use crate::providers::state::MongoStateImpl;
+use log::error;
+use log::info;
 use thiserror::Error;
 use tokio_stream::Stream;
 use tokio_stream::StreamExt;
@@ -69,6 +71,10 @@ impl AstronautController {
         &self,
         input: CreateAstronautInput,
     ) -> Result<String, AstronautControllerError> {
+        let id = uuid::Uuid::new_v4().to_string();
+
+        info!("creating astronaut with id {}", id);
+
         match self
             .state
             .find_one_by_field::<Astronaut>("astronauts", "name", &input.name)
@@ -79,7 +85,6 @@ impl AstronautController {
             _ => Ok(()),
         }?;
 
-        let id = uuid::Uuid::new_v4().to_string();
         let event = AstronautCreatedEvent {
             id: id.clone(),
             name: input.name,
@@ -90,6 +95,9 @@ impl AstronautController {
         self.emitter
             .emit("astronaut_created", &id, &payload)
             .await?;
+
+        info!("astronaut created with id {}", id);
+
         Ok(id)
     }
 }
@@ -100,6 +108,8 @@ impl AstronautController {
         id: String,
         input: UpdateAstronautInput,
     ) -> Result<String, AstronautControllerError> {
+        info!("updating astronaut with id {}", id);
+
         match self
             .state
             .find_one_by_id::<Astronaut>("astronauts", &id)
@@ -137,6 +147,8 @@ impl AstronautController {
             .emit("astronaut_updated", &id, &payload)
             .await?;
 
+        info!("astronaut updated with id {}", id);
+
         Ok(id)
     }
 }
@@ -156,16 +168,26 @@ impl AstronautController {
                         )
                         .unwrap();
 
+                        info!(
+                            "created astronaut syncing to mongo with id {} name {}",
+                            event.id, event.name
+                        );
+
                         let astronaut = Astronaut {
-                            id: event.id,
-                            name: event.name,
+                            id: event.id.clone(),
+                            name: event.name.clone(),
                             birth_date: event.birth_date,
                         };
 
                         match self.state.insert_one("astronauts", &astronaut).await {
-                            Err(err) => println!("Error inserting astronaut in state: {}", err),
+                            Err(err) => error!("error inserting astronaut in state: {}", err),
                             Ok(_) => {}
                         };
+
+                        info!(
+                            "created astronaut synced to mongo with id {} name {}",
+                            event.id, event.name
+                        );
                     }
                     1 => {
                         let event = JsonSerializerImpl::deserialize::<AstronautUpdatedEvent>(
@@ -173,20 +195,32 @@ impl AstronautController {
                         )
                         .unwrap();
 
+                        info!(
+                            "updated astronaut syncing to mongo with id {} name {}",
+                            event.id,
+                            event.name.clone().unwrap_or("".to_string())
+                        );
+
                         match self
                             .state
                             .update_one("astronauts", "_id", &event.id, &event)
                             .await
                         {
-                            Err(err) => println!("Error updating astronaut in state: {}", err),
+                            Err(err) => error!("Error updating astronaut in state: {}", err),
                             Ok(_) => {}
                         };
+
+                        info!(
+                            "updated astronaut synced to mongo with id {} name {}",
+                            event.id,
+                            event.name.clone().unwrap_or("".to_string()),
+                        );
                     }
                     _ => {
-                        println!("unsupported case");
+                        error!("unsupported case");
                     }
                 },
-                Err(err) => println!("error in broadcast stream: {}", err),
+                Err(err) => error!("error in broadcast stream: {}", err),
             }
         }
     }
@@ -201,13 +235,13 @@ impl AstronautController {
                     match JsonSerializerImpl::deserialize::<Astronaut>(&value.get_payload()) {
                         Ok(v) => Some(v),
                         Err(err) => {
-                            println!("Error deserializing astronaut: {}", err);
+                            error!("error deserializing astronaut: {}", err);
                             None
                         }
                     }
                 }
                 Err(err) => {
-                    println!("Error in broadcast stream: {}", err);
+                    error!("error in broadcast stream: {}", err);
                     None
                 }
             })

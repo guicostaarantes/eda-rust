@@ -10,7 +10,9 @@ async-graphql = { version = "5.0.6", features = ["chrono", "uuid"] }
 async-graphql-axum = "5.0.6"
 axum = { version = "0.6.4", features = ["headers"] }
 chrono = { version = "0.4.23", features = ["serde"] }
-mongodb = "2.3.1"
+log = "0.4.17"
+mongodb = "2.4.0"
+pretty_env_logger = "0.4.0"
 rdkafka = "0.29.0"
 serde = "1.0.152"
 serde_json = "1.0.93"

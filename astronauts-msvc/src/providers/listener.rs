@@ -1,4 +1,5 @@
 use async_graphql::futures_util::future::join_all;
+use log::error;
 use rdkafka::config::ClientConfig;
 use rdkafka::consumer::stream_consumer::StreamConsumer;
 use rdkafka::consumer::Consumer;
@@ -25,7 +26,7 @@ pub struct KafkaMessage {
 impl KafkaMessage {
     pub fn get_timestamp(&self) -> isize {
         self.timestamp.to_millis().unwrap_or_else(|| {
-            println!("got none for a kafka timestamp");
+            error!("got none for a kafka timestamp");
             0
         }) as isize
     }
@@ -121,18 +122,18 @@ impl KafkaConsumerImpl {
                                     payload: s.to_string(),
                                 }) {
                                     Err(err) => {
-                                        println!("Error while sending message to channel: {}", err)
+                                        error!("error while sending message to channel: {}", err)
                                     }
                                     _ => {}
                                 };
                             }
                             Some(Err(err)) => {
-                                println!("Error while deserializing message payload: {:?}", err)
+                                error!("error while deserializing message payload: {:?}", err)
                             }
-                            None => println!("Received None from consumer deserializer"),
+                            None => error!("received None from consumer deserializer"),
                         },
-                        Some(Err(err)) => println!("Error while consuming from topic: {:?}", err),
-                        None => println!("Received None from consumer"),
+                        Some(Err(err)) => error!("error while consuming from topic: {:?}", err),
+                        None => error!("received None from consumer"),
                     }
                 }
             }
@@ -213,11 +214,11 @@ impl KafkaConsumerImpl {
                         {
                             Ok(Some(Ok(msg))) => StreamState::HasMsg(msg),
                             Ok(Some(Err(err))) => {
-                                println!("error in stream from kafka: {}", err);
+                                error!("error in stream from kafka: {}", err);
                                 StreamState::NoNewMsg
                             }
                             Ok(None) => {
-                                println!("should never return this");
+                                error!("should never return this");
                                 StreamState::NoNewMsg
                             }
                             Err(_) => StreamState::NoNewMsg,
@@ -249,7 +250,7 @@ impl KafkaConsumerImpl {
                             message: msg.clone(),
                         }) {
                             Err(err) => {
-                                println!("Error while sending message to channel: {}", err)
+                                error!("error while sending message to channel: {}", err)
                             }
                             _ => {}
                         };

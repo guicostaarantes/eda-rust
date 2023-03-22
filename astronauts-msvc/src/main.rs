@@ -42,6 +42,8 @@ async fn graphiql() -> impl IntoResponse {
 
 #[tokio::main]
 async fn main() {
+    pretty_env_logger::init_timed();
+
     let kafka_url = env::var("KAFKA_URL").expect("KAFKA_URL env var not set");
     let unique_pod_id = env::var("UNIQUE_POD_ID").expect("UNIQUE_POD_ID env var not set");
     let mongo_url = env::var("MONGO_URL").expect("MONGO_URL env var not set");

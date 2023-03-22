@@ -8,11 +8,12 @@ services:
     ports:
       - 7001:8000
     environment:
+      RUST_LOG: info
       KAFKA_URL: kafka:29092
       MONGO_URL: mongodb://astronauts-msvc:8b9z0mE37Cv1OK5I@mongo:27017/astronauts
       MONGO_DATABASE: astronauts
       REDIS_URL: redis://redis:6379/0
-      UNIQUE_POD_ID: ILw7xElp3F9Dwc1n
+      UNIQUE_POD_ID: ILw7xElp3F9Dwc2f
     depends_on:
       - mongo
       - redis
