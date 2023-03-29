@@ -9,8 +9,9 @@ use crate::providers::hash::HashImpl;
 use crate::providers::hash::HashImplError;
 use crate::providers::json::JsonSerializerImpl;
 use crate::providers::mem_state::RedisMemStateImpl;
-use crate::providers::random::RandomImpl;
 use crate::providers::state::MongoStateImpl;
+use crate::providers::token::TokenImpl;
+use crate::providers::token::TokenImplError;
 use log::error;
 use log::info;
 use thiserror::Error;
@@ -27,6 +28,8 @@ pub enum AstronautCommanderError {
     MemStateImplError(#[from] redis::RedisError),
     #[error(transparent)]
     StateImplError(#[from] mongodb::error::Error),
+    #[error(transparent)]
+    TokenImplError(#[from] TokenImplError),
     #[error("astronaut not found")]
     AstronautNotFound,
     #[error("astronaut with same name already exists")]
@@ -42,6 +45,7 @@ pub struct AstronautCommander {
     emitter: KafkaEmitterImpl,
     state: MongoStateImpl,
     mem_state: RedisMemStateImpl,
+    token_impl: TokenImpl,
 }
 
 impl AstronautCommander {
@@ -49,11 +53,13 @@ impl AstronautCommander {
         emitter: KafkaEmitterImpl,
         state: MongoStateImpl,
         mem_state: RedisMemStateImpl,
+        token_impl: TokenImpl,
     ) -> Self {
         Self {
             emitter,
             state,
             mem_state,
+            token_impl,
         }
     }
 }
@@ -178,12 +184,11 @@ impl AstronautCommander {
             Err(_) => Err(AstronautCommanderError::PasswordDoesNotMatch),
         }?;
 
-        let token = RandomImpl::string(64);
+        let token = match self.token_impl.produce_token(&astronaut.id, 3600).await {
+            Ok(token) => Ok(token),
+            Err(err) => Err(AstronautCommanderError::TokenImplError(err)),
+        }?;
 
-        self.mem_state
-            .set(&token, &astronaut.id, Some(3600))
-            .await?;
-
-        Ok(token)
+        Ok(token.id)
     }
 }

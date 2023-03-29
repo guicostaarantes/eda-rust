@@ -3,7 +3,6 @@ use crate::domain::astronaut_model::AstronautDocument;
 use crate::domain::astronaut_model::AstronautUpdatedEvent;
 use crate::providers::json::JsonSerializerImpl;
 use crate::providers::listener::KafkaConsumerImpl;
-use crate::providers::mem_state::RedisMemStateImpl;
 use crate::providers::state::MongoStateImpl;
 use log::error;
 use thiserror::Error;
@@ -30,37 +29,11 @@ pub enum AstronautQuerierError {
 pub struct AstronautQuerier {
     listener: KafkaConsumerImpl,
     state: MongoStateImpl,
-    mem_state: RedisMemStateImpl,
 }
 
 impl AstronautQuerier {
-    pub fn new(
-        listener: KafkaConsumerImpl,
-        state: MongoStateImpl,
-        mem_state: RedisMemStateImpl,
-    ) -> Self {
-        Self {
-            listener,
-            state,
-            mem_state,
-        }
-    }
-}
-
-impl AstronautQuerier {
-    pub async fn check_astronaut_credentials(
-        &self,
-        token: String,
-    ) -> Result<String, AstronautQuerierError> {
-        let astronaut_id = match self.mem_state.get(&token).await {
-            Ok(id) => Ok(id),
-            Err(err) => match err.kind() {
-                redis::ErrorKind::TypeError => Err(AstronautQuerierError::TokenNotFound),
-                _ => Err(AstronautQuerierError::MemStateImplError(err)),
-            },
-        }?;
-
-        Ok(astronaut_id)
+    pub fn new(listener: KafkaConsumerImpl, state: MongoStateImpl) -> Self {
+        Self { listener, state }
     }
 }
 

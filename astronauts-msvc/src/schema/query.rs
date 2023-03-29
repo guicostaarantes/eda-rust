@@ -1,6 +1,7 @@
 use crate::domain::astronaut_model::Astronaut;
 use crate::domain::astronaut_querier::AstronautQuerier;
 use crate::domain::astronaut_querier::AstronautQuerierError;
+use crate::providers::token::Token;
 use async_graphql::Context;
 use async_graphql::Object;
 
@@ -11,11 +12,11 @@ impl QueryRoot {
     async fn check_astronaut_credentials(
         &self,
         ctx: &Context<'_>,
-        token: String,
     ) -> Result<String, AstronautQuerierError> {
-        ctx.data_unchecked::<AstronautQuerier>()
-            .check_astronaut_credentials(token)
-            .await
+        match ctx.data_opt::<Token>() {
+            Some(tok) => Ok(tok.content.clone()),
+            None => Err(AstronautQuerierError::TokenNotFound),
+        }
     }
 
     async fn astronaut_by_id(

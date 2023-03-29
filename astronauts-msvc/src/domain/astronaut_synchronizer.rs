@@ -4,7 +4,6 @@ use crate::domain::astronaut_model::AstronautUpdatedDocument;
 use crate::domain::astronaut_model::AstronautUpdatedEvent;
 use crate::providers::json::JsonSerializerImpl;
 use crate::providers::listener::KafkaConsumerImpl;
-use crate::providers::mem_state::RedisMemStateImpl;
 use crate::providers::state::MongoStateImpl;
 use log::error;
 use log::info;
@@ -23,20 +22,11 @@ pub enum AstronautSynchronizerError {
 pub struct AstronautSynchronizer {
     listener: KafkaConsumerImpl,
     state: MongoStateImpl,
-    mem_state: RedisMemStateImpl,
 }
 
 impl AstronautSynchronizer {
-    pub fn new(
-        listener: KafkaConsumerImpl,
-        state: MongoStateImpl,
-        mem_state: RedisMemStateImpl,
-    ) -> Self {
-        Self {
-            listener,
-            state,
-            mem_state,
-        }
+    pub fn new(listener: KafkaConsumerImpl, state: MongoStateImpl) -> Self {
+        Self { listener, state }
     }
 }
 
