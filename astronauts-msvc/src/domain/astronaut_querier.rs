@@ -96,7 +96,14 @@ impl AstronautQuerier {
                             match tx.send(astronaut.clone()).await {
                                 Ok(_) => {}
                                 Err(err) => {
-                                    error!("error updating stream for get_astronaut_by_id: {}", err)
+                                    if err.to_string() == "channel closed".to_string() {
+                                        break;
+                                    } else {
+                                        error!(
+                                            "error updating stream for get_astronaut_by_id 2: {}",
+                                            err
+                                        );
+                                    }
                                 }
                             };
                         }
