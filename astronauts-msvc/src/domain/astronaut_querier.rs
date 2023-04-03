@@ -60,8 +60,9 @@ impl AstronautQuerier {
         id: String,
     ) -> Result<impl Stream<Item = Astronaut>, AstronautQuerierError> {
         let (tx, rx) = channel(8);
+        let tx_copy = tx.clone();
 
-        let mut astronaut = match self.get_astronaut_by_id(id).await {
+        let mut astronaut = match self.get_astronaut_by_id(id.clone()).await {
             Ok(astro) => match tx.send(astro.clone()).await {
                 Ok(_) => Ok(astro),
                 Err(err) => {
@@ -76,7 +77,7 @@ impl AstronautQuerier {
             .listener
             .listen_multiple(&["astronaut_updated"], "mongo");
 
-        tokio::spawn(async move {
+        let task = tokio::spawn(async move {
             while let Some(r) = stream.next().await {
                 match r {
                     Ok(re) => match re.topic_index {
@@ -91,19 +92,19 @@ impl AstronautQuerier {
                                 }
                             };
 
+                            if event.id != id {
+                                continue;
+                            };
+
                             astronaut = astronaut.apply_update_event(&event);
 
                             match tx.send(astronaut.clone()).await {
                                 Ok(_) => {}
                                 Err(err) => {
-                                    if err.to_string() == "channel closed".to_string() {
-                                        break;
-                                    } else {
-                                        error!(
-                                            "error updating stream for get_astronaut_by_id 2: {}",
-                                            err
-                                        );
-                                    }
+                                    error!(
+                                        "error updating stream for get_astronaut_by_id: {}",
+                                        err
+                                    );
                                 }
                             };
                         }
@@ -114,6 +115,11 @@ impl AstronautQuerier {
                     Err(err) => error!("error in mpsc stream: {}", err),
                 }
             }
+        });
+
+        tokio::spawn(async move {
+            tx_copy.closed().await;
+            task.abort();
         });
 
         Ok(ReceiverStream::new(rx))

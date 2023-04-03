@@ -242,9 +242,6 @@ impl KafkaConsumerImpl {
                 match &chosen.state {
                     StreamState::NoNewMsg => {
                         timeout_ms = 1000;
-                        if tx.receiver_count() == 0 {
-                            break;
-                        }
                     }
                     StreamState::HasMsg(msg) => {
                         timeout_ms = 1000;
@@ -256,13 +253,17 @@ impl KafkaConsumerImpl {
                                 if err.to_string() == "channel closed".to_string() {
                                     break;
                                 } else {
-                                    error!("error while sending message to channel 2: {}", err);
+                                    error!("error while sending message to channel at listen_multiple: {}", err);
                                 }
                             }
                             _ => {}
                         };
                         chosen.state = StreamState::NoNewMsg;
                     }
+                }
+
+                if tx.receiver_count() == 0 {
+                    break;
                 }
             }
         });
