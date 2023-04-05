@@ -2,8 +2,6 @@ mod domain;
 mod providers;
 mod schema;
 
-use std::env;
-
 use crate::domain::astronaut_commander::AstronautCommander;
 use crate::domain::astronaut_querier::AstronautQuerier;
 use crate::domain::astronaut_synchronizer::AstronautSynchronizer;
@@ -29,10 +27,12 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
 use axum::Server;
+use std::env;
+use std::sync::Arc;
 
 async fn graphql_handler(
     schema: Extension<AstronautsSchema>,
-    token_impl: Extension<TokenImpl>,
+    token_impl: Extension<Arc<TokenImpl>>,
     headers: HeaderMap,
     req: GraphQLRequest,
 ) -> GraphQLResponse {
@@ -70,24 +70,24 @@ async fn main() {
     let mongo_database = env::var("MONGO_DATABASE").expect("MONGO_DATABASE env var not set");
     let redis_url = env::var("REDIS_URL").expect("REDIS_URL env var not set");
 
-    let emitter =
-        KafkaEmitterImpl::new(&kafka_url).expect("could not connect to kafka as a producer");
-    let listener = KafkaConsumerImpl::new(&kafka_url, &unique_pod_id);
-    let state = MongoStateImpl::new(&mongo_url, &mongo_database)
-        .await
-        .expect("could not connect to mongo");
-    let mem_state = RedisMemStateImpl::new(&redis_url).expect("could not connect to redis");
-
-    let token_impl = TokenImpl::new(mem_state.clone());
-
-    let astronaut_commander = AstronautCommander::new(
-        emitter.clone(),
-        state.clone(),
-        mem_state,
-        token_impl.clone(),
+    let emitter = Arc::new(
+        KafkaEmitterImpl::new(&kafka_url).expect("could not connect to kafka as a producer"),
     );
+    let listener = Arc::new(KafkaConsumerImpl::new(&kafka_url, &unique_pod_id));
+    let state = Arc::new(
+        MongoStateImpl::new(&mongo_url, &mongo_database)
+            .await
+            .expect("could not connect to mongo"),
+    );
+    let mem_state =
+        Arc::new(RedisMemStateImpl::new(&redis_url).expect("could not connect to redis"));
+
+    let token_impl = Arc::new(TokenImpl::new(mem_state.clone()));
+
+    let astronaut_commander =
+        AstronautCommander::new(emitter.clone(), state.clone(), token_impl.clone());
     let astronaut_querier = AstronautQuerier::new(listener.clone(), state.clone());
-    let astronaut_synchronizer = AstronautSynchronizer::new(listener, state);
+    let astronaut_synchronizer = AstronautSynchronizer::new(listener.clone(), state.clone());
 
     tokio::spawn(async move { astronaut_synchronizer.sync_events_to_state().await });
 

@@ -7,6 +7,7 @@ use crate::providers::listener::KafkaConsumerImpl;
 use crate::providers::state::MongoStateImpl;
 use log::error;
 use log::info;
+use std::sync::Arc;
 use thiserror::Error;
 use tokio_stream::StreamExt;
 
@@ -20,12 +21,12 @@ pub enum AstronautSynchronizerError {
 
 #[derive(Clone)]
 pub struct AstronautSynchronizer {
-    listener: KafkaConsumerImpl,
-    state: MongoStateImpl,
+    listener: Arc<KafkaConsumerImpl>,
+    state: Arc<MongoStateImpl>,
 }
 
 impl AstronautSynchronizer {
-    pub fn new(listener: KafkaConsumerImpl, state: MongoStateImpl) -> Self {
+    pub fn new(listener: Arc<KafkaConsumerImpl>, state: Arc<MongoStateImpl>) -> Self {
         Self { listener, state }
     }
 }

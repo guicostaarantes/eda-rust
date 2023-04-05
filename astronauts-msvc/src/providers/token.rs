@@ -4,11 +4,12 @@ use chrono::DateTime;
 use chrono::Duration;
 use chrono::NaiveDateTime;
 use chrono::Utc;
+use std::sync::Arc;
 use thiserror::Error;
 
 #[derive(Clone)]
 pub struct TokenImpl {
-    mem_state: RedisMemStateImpl,
+    mem_state: Arc<RedisMemStateImpl>,
 }
 
 pub struct Token {
@@ -28,7 +29,7 @@ pub enum TokenImplError {
 }
 
 impl TokenImpl {
-    pub fn new(mem_state: RedisMemStateImpl) -> Self {
+    pub fn new(mem_state: Arc<RedisMemStateImpl>) -> Self {
         Self { mem_state }
     }
 }

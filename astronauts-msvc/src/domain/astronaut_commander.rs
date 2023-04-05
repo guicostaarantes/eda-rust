@@ -8,12 +8,12 @@ use crate::providers::emitter::KafkaEmitterImpl;
 use crate::providers::hash::HashImpl;
 use crate::providers::hash::HashImplError;
 use crate::providers::json::JsonSerializerImpl;
-use crate::providers::mem_state::RedisMemStateImpl;
 use crate::providers::state::MongoStateImpl;
 use crate::providers::token::TokenImpl;
 use crate::providers::token::TokenImplError;
 use log::error;
 use log::info;
+use std::sync::Arc;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -24,8 +24,6 @@ pub enum AstronautCommanderError {
     HashImplError(#[from] HashImplError),
     #[error(transparent)]
     JsonSerializerImplError(#[from] serde_json::Error),
-    #[error(transparent)]
-    MemStateImplError(#[from] redis::RedisError),
     #[error(transparent)]
     StateImplError(#[from] mongodb::error::Error),
     #[error(transparent)]
@@ -42,23 +40,20 @@ pub enum AstronautCommanderError {
 
 #[derive(Clone)]
 pub struct AstronautCommander {
-    emitter: KafkaEmitterImpl,
-    state: MongoStateImpl,
-    mem_state: RedisMemStateImpl,
-    token_impl: TokenImpl,
+    emitter: Arc<KafkaEmitterImpl>,
+    state: Arc<MongoStateImpl>,
+    token_impl: Arc<TokenImpl>,
 }
 
 impl AstronautCommander {
     pub fn new(
-        emitter: KafkaEmitterImpl,
-        state: MongoStateImpl,
-        mem_state: RedisMemStateImpl,
-        token_impl: TokenImpl,
+        emitter: Arc<KafkaEmitterImpl>,
+        state: Arc<MongoStateImpl>,
+        token_impl: Arc<TokenImpl>,
     ) -> Self {
         Self {
             emitter,
             state,
-            mem_state,
             token_impl,
         }
     }

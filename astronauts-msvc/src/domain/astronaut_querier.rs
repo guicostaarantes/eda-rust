@@ -5,6 +5,7 @@ use crate::providers::json::JsonSerializerImpl;
 use crate::providers::listener::KafkaConsumerImpl;
 use crate::providers::state::MongoStateImpl;
 use log::error;
+use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::mpsc::channel;
 use tokio_stream::wrappers::ReceiverStream;
@@ -27,12 +28,12 @@ pub enum AstronautQuerierError {
 
 #[derive(Clone)]
 pub struct AstronautQuerier {
-    listener: KafkaConsumerImpl,
-    state: MongoStateImpl,
+    listener: Arc<KafkaConsumerImpl>,
+    state: Arc<MongoStateImpl>,
 }
 
 impl AstronautQuerier {
-    pub fn new(listener: KafkaConsumerImpl, state: MongoStateImpl) -> Self {
+    pub fn new(listener: Arc<KafkaConsumerImpl>, state: Arc<MongoStateImpl>) -> Self {
         Self { listener, state }
     }
 }
