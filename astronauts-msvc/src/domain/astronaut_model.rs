@@ -51,6 +51,7 @@ impl Astronaut {
 #[derive(InputObject)]
 pub struct CreateAstronautInput {
     pub name: String,
+    #[graphql(secret)]
     pub password: String,
     pub birth_date: DateTime<Utc>,
 }
@@ -58,12 +59,14 @@ pub struct CreateAstronautInput {
 #[derive(InputObject)]
 pub struct GetAstronautCredentialsInput {
     pub name: String,
+    #[graphql(secret)]
     pub password: String,
 }
 
 #[derive(InputObject)]
 pub struct UpdateAstronautInput {
     pub name: Option<String>,
+    #[graphql(secret)]
     pub password: Option<String>,
     pub birth_date: Option<DateTime<Utc>>,
 }
