@@ -24,6 +24,8 @@ pub enum AstronautQuerierError {
     AstronautNotFound,
     #[error("token not found")]
     TokenNotFound,
+    #[error("bad token payload")]
+    BadTokenPayload,
 }
 
 #[derive(Clone)]

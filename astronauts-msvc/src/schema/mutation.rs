@@ -40,4 +40,16 @@ impl MutationRoot {
             .get_astronaut_credentials(input)
             .await
     }
+
+    async fn unset_astronaut_credentials(
+        &self,
+        ctx: &Context<'_>,
+        token: String,
+    ) -> Result<String, AstronautCommanderError> {
+        ctx.data_unchecked::<AstronautCommander>()
+            .unset_astronaut_credentials(token)
+            .await?;
+
+        Ok("token destroyed".to_string())
+    }
 }

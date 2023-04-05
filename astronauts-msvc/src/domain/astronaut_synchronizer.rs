@@ -65,7 +65,7 @@ impl AstronautSynchronizer {
                                 continue;
                             }
                             Ok(Some(_)) => {
-                                info!("skipped syncing created astronaut with id {} since user with same name already exists", event.id);
+                                info!("skipped syncing created astronaut with id {} since astronaut with same name already exists", event.id);
                                 continue;
                             }
                             _ => {}

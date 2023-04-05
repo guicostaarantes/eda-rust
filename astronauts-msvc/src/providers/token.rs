@@ -1,9 +1,12 @@
+use crate::providers::json::JsonSerializerImpl;
 use crate::providers::mem_state::RedisMemStateImpl;
 use crate::providers::random::RandomImpl;
 use chrono::DateTime;
 use chrono::Duration;
 use chrono::NaiveDateTime;
 use chrono::Utc;
+use serde::Deserialize;
+use serde::Serialize;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -12,9 +15,15 @@ pub struct TokenImpl {
     mem_state: Arc<RedisMemStateImpl>,
 }
 
+#[derive(Clone, Deserialize, Serialize)]
+pub struct TokenPayload {
+    pub astronaut_id: String,
+    pub permissions: Vec<String>,
+}
+
 pub struct Token {
     pub id: String,
-    pub content: String,
+    pub payload: TokenPayload,
     pub expires_at: DateTime<Utc>,
 }
 
@@ -22,6 +31,8 @@ pub struct Token {
 pub enum TokenImplError {
     #[error(transparent)]
     MemStateImplError(#[from] redis::RedisError),
+    #[error(transparent)]
+    JsonSerializerImplError(#[from] serde_json::Error),
     #[error("bad timestamp")]
     BadTimestamp,
     #[error("token expired")]
@@ -37,18 +48,31 @@ impl TokenImpl {
 impl TokenImpl {
     pub async fn produce_token(
         &self,
-        payload: &str,
+        astronaut_id: &str,
+        permissions: &[&str],
         expires_in: u64,
     ) -> Result<Token, TokenImplError> {
         let expires_at = Utc::now() + Duration::seconds(expires_in as i64);
-        let id = format!("{}.{}", RandomImpl::string(64), expires_at.timestamp());
-        let content = payload.to_string();
 
-        self.mem_state.set(&id, &content, Some(expires_in)).await?;
+        let id = format!("{}.{}", RandomImpl::string(64), expires_at.timestamp());
+
+        let payload = TokenPayload {
+            astronaut_id: astronaut_id.to_string(),
+            permissions: permissions.iter().map(|s| s.to_string()).collect(),
+        };
+
+        let serialized_payload = match JsonSerializerImpl::serialize(&payload) {
+            Ok(payload) => Ok(payload),
+            Err(err) => Err(TokenImplError::JsonSerializerImplError(err)),
+        }?;
+
+        self.mem_state
+            .set(&id, &serialized_payload, Some(expires_in))
+            .await?;
 
         Ok(Token {
             id,
-            content,
+            payload,
             expires_at,
         })
     }
@@ -73,10 +97,31 @@ impl TokenImpl {
 
         let content = self.mem_state.get(&id).await?;
 
+        let payload = match JsonSerializerImpl::deserialize::<TokenPayload>(&content) {
+            Ok(result) => Ok(result),
+            Err(err) => Err(TokenImplError::JsonSerializerImplError(err)),
+        }?;
+
         Ok(Token {
             id: id.to_string(),
-            content,
+            payload,
             expires_at,
         })
+    }
+}
+
+impl TokenImpl {
+    pub async fn destroy_token(&self, token: &str) -> Result<(), TokenImplError> {
+        self.mem_state.unset(&token).await?;
+        Ok(())
+    }
+}
+
+impl Token {
+    pub fn get_payload_as_string(&self) -> Result<String, TokenImplError> {
+        match JsonSerializerImpl::serialize(&self.payload) {
+            Ok(result) => Ok(result),
+            Err(err) => Err(TokenImplError::JsonSerializerImplError(err)),
+        }
     }
 }

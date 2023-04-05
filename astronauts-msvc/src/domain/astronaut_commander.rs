@@ -179,11 +179,31 @@ impl AstronautCommander {
             Err(_) => Err(AstronautCommanderError::PasswordDoesNotMatch),
         }?;
 
-        let token = match self.token_impl.produce_token(&astronaut.id, 3600).await {
+        let token = match self
+            .token_impl
+            .produce_token(
+                &astronaut.id,
+                &["GET_ANY_ASTRONAUT", "UPDATE_OWN_ASTRONAUT"],
+                30,
+            )
+            .await
+        {
             Ok(token) => Ok(token),
             Err(err) => Err(AstronautCommanderError::TokenImplError(err)),
         }?;
 
         Ok(token.id)
+    }
+}
+
+impl AstronautCommander {
+    pub async fn unset_astronaut_credentials(
+        &self,
+        token: String,
+    ) -> Result<(), AstronautCommanderError> {
+        match self.token_impl.destroy_token(&token).await {
+            Ok(_) => Ok(()),
+            Err(err) => Err(AstronautCommanderError::TokenImplError(err)),
+        }
     }
 }

@@ -14,7 +14,10 @@ impl QueryRoot {
         ctx: &Context<'_>,
     ) -> Result<String, AstronautQuerierError> {
         match ctx.data_opt::<Token>() {
-            Some(tok) => Ok(tok.content.clone()),
+            Some(tok) => match tok.get_payload_as_string() {
+                Ok(payload) => Ok(payload),
+                Err(_) => Err(AstronautQuerierError::BadTokenPayload),
+            },
             None => Err(AstronautQuerierError::TokenNotFound),
         }
     }
