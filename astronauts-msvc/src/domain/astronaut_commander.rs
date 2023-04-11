@@ -9,6 +9,7 @@ use crate::providers::hash::HashImpl;
 use crate::providers::hash::HashImplError;
 use crate::providers::json::JsonSerializerImpl;
 use crate::providers::state::MongoStateImpl;
+use crate::providers::token::RawToken;
 use crate::providers::token::TokenImpl;
 use crate::providers::token::TokenImplError;
 use log::error;
@@ -36,13 +37,17 @@ pub enum AstronautCommanderError {
     NoFieldsToUpdate,
     #[error("password does not match")]
     PasswordDoesNotMatch,
+    #[error("token not found")]
+    TokenNotFound,
+    #[error("forbidden")]
+    Forbidden,
 }
 
 #[derive(Clone)]
 pub struct AstronautCommander {
     emitter: Arc<KafkaEmitterImpl>,
     state: Arc<MongoStateImpl>,
-    token_impl: Arc<TokenImpl>,
+    token: Arc<TokenImpl>,
 }
 
 impl AstronautCommander {
@@ -54,7 +59,7 @@ impl AstronautCommander {
         Self {
             emitter,
             state,
-            token_impl,
+            token: token_impl,
         }
     }
 }
@@ -101,10 +106,30 @@ impl AstronautCommander {
 impl AstronautCommander {
     pub async fn update_astronaut(
         &self,
+        raw_token: &RawToken,
         id: String,
         input: UpdateAstronautInput,
     ) -> Result<String, AstronautCommanderError> {
         info!("updating astronaut with id {}", id);
+
+        match self.token.fetch_token(raw_token).await {
+            Ok(token) => {
+                let allowed = token.payload.permissions.iter().any(|perm| {
+                    if perm == &"UPDATE_OWN_ASTRONAUT" && token.payload.astronaut_id == id {
+                        true
+                    } else {
+                        false
+                    }
+                });
+
+                if allowed {
+                    Ok(())
+                } else {
+                    Err(AstronautCommanderError::Forbidden)
+                }
+            }
+            Err(_) => Err(AstronautCommanderError::TokenNotFound),
+        }?;
 
         match self
             .state
@@ -180,11 +205,11 @@ impl AstronautCommander {
         }?;
 
         let token = match self
-            .token_impl
+            .token
             .produce_token(
                 &astronaut.id,
                 &["GET_ANY_ASTRONAUT", "UPDATE_OWN_ASTRONAUT"],
-                30,
+                60,
             )
             .await
         {
@@ -201,7 +226,7 @@ impl AstronautCommander {
         &self,
         token: String,
     ) -> Result<(), AstronautCommanderError> {
-        match self.token_impl.destroy_token(&token).await {
+        match self.token.destroy_token(&token).await {
             Ok(_) => Ok(()),
             Err(err) => Err(AstronautCommanderError::TokenImplError(err)),
         }

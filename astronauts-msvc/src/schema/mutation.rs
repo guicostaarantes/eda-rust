@@ -3,6 +3,7 @@ use crate::domain::astronaut_commander::AstronautCommanderError;
 use crate::domain::astronaut_model::CreateAstronautInput;
 use crate::domain::astronaut_model::GetAstronautCredentialsInput;
 use crate::domain::astronaut_model::UpdateAstronautInput;
+use crate::providers::token::RawToken;
 use async_graphql::Context;
 use async_graphql::Object;
 
@@ -26,9 +27,14 @@ impl MutationRoot {
         id: String,
         input: UpdateAstronautInput,
     ) -> Result<String, AstronautCommanderError> {
-        ctx.data_unchecked::<AstronautCommander>()
-            .update_astronaut(id, input)
-            .await
+        match ctx.data_opt::<RawToken>() {
+            Some(raw_token) => {
+                ctx.data_unchecked::<AstronautCommander>()
+                    .update_astronaut(raw_token, id, input)
+                    .await
+            }
+            None => Err(AstronautCommanderError::TokenNotFound),
+        }
     }
 
     async fn get_astronaut_credentials(

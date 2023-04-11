@@ -21,6 +21,9 @@ pub struct TokenPayload {
     pub permissions: Vec<String>,
 }
 
+#[derive(Clone)]
+pub struct RawToken(pub String);
+
 pub struct Token {
     pub id: String,
     pub payload: TokenPayload,
@@ -79,8 +82,8 @@ impl TokenImpl {
 }
 
 impl TokenImpl {
-    pub async fn fetch_token(&self, id: &str) -> Result<Token, TokenImplError> {
-        let expires_at = match id.split_once('.') {
+    pub async fn fetch_token(&self, raw_token: &RawToken) -> Result<Token, TokenImplError> {
+        let expires_at = match raw_token.0.split_once('.') {
             Some((_, expires_at)) => match expires_at.parse::<i64>() {
                 Ok(expires_at_i64) => match NaiveDateTime::from_timestamp_opt(expires_at_i64, 0) {
                     Some(tmstp) => Ok(DateTime::from_utc(tmstp, Utc)),
@@ -95,7 +98,7 @@ impl TokenImpl {
             return Err(TokenImplError::TokenExpired);
         }
 
-        let content = self.mem_state.get(&id).await?;
+        let content = self.mem_state.get(&raw_token.0).await?;
 
         let payload = match JsonSerializerImpl::deserialize::<TokenPayload>(&content) {
             Ok(result) => Ok(result),
@@ -103,7 +106,7 @@ impl TokenImpl {
         }?;
 
         Ok(Token {
-            id: id.to_string(),
+            id: raw_token.0.to_string(),
             payload,
             expires_at,
         })
@@ -114,14 +117,5 @@ impl TokenImpl {
     pub async fn destroy_token(&self, token: &str) -> Result<(), TokenImplError> {
         self.mem_state.unset(&token).await?;
         Ok(())
-    }
-}
-
-impl Token {
-    pub fn get_payload_as_string(&self) -> Result<String, TokenImplError> {
-        match JsonSerializerImpl::serialize(&self.payload) {
-            Ok(result) => Ok(result),
-            Err(err) => Err(TokenImplError::JsonSerializerImplError(err)),
-        }
     }
 }

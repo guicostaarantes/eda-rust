@@ -16,23 +16,27 @@ use crate::schema::QueryRoot;
 use crate::schema::SubscriptionRoot;
 use async_graphql::http::playground_source;
 use async_graphql::http::GraphQLPlaygroundConfig;
+use async_graphql::http::ALL_WEBSOCKET_PROTOCOLS;
 use async_graphql::Schema;
+use async_graphql_axum::GraphQLProtocol;
 use async_graphql_axum::GraphQLRequest;
 use async_graphql_axum::GraphQLResponse;
-use async_graphql_axum::GraphQLSubscription;
+use async_graphql_axum::GraphQLWebSocket;
 use axum::extract::Extension;
+use axum::extract::WebSocketUpgrade;
 use axum::headers::HeaderMap;
 use axum::response::Html;
 use axum::response::IntoResponse;
+use axum::response::Response;
 use axum::routing::get;
 use axum::Router;
 use axum::Server;
+use providers::token::RawToken;
 use std::env;
 use std::sync::Arc;
 
 async fn graphql_handler(
     schema: Extension<AstronautsSchema>,
-    token_impl: Extension<Arc<TokenImpl>>,
     headers: HeaderMap,
     req: GraphQLRequest,
 ) -> GraphQLResponse {
@@ -40,12 +44,9 @@ async fn graphql_handler(
 
     match headers.get("token") {
         Some(value) => match value.to_str() {
-            Ok(val) => match token_impl.fetch_token(val).await {
-                Ok(token) => {
-                    req = req.data(token);
-                }
-                Err(_) => {}
-            },
+            Ok(val) => {
+                req = req.data(RawToken(val.to_string()));
+            }
             Err(_) => {}
         },
         None => {}
@@ -58,6 +59,35 @@ async fn graphql_playground() -> impl IntoResponse {
     Html(playground_source(
         GraphQLPlaygroundConfig::new("/").subscription_endpoint("/ws"),
     ))
+}
+
+async fn graphql_ws_handler(
+    Extension(schema): Extension<AstronautsSchema>,
+    protocol: GraphQLProtocol,
+    websocket: WebSocketUpgrade,
+) -> Response {
+    let on_connection_init = |value: serde_json::Value| async move {
+        #[derive(serde::Deserialize)]
+        struct Payload {
+            token: String,
+        }
+
+        let mut data = async_graphql::Data::default();
+
+        if let Ok(payload) = serde_json::from_value::<Payload>(value) {
+            data.insert(RawToken(payload.token));
+        };
+
+        Ok(data)
+    };
+
+    websocket
+        .protocols(ALL_WEBSOCKET_PROTOCOLS)
+        .on_upgrade(move |stream| {
+            GraphQLWebSocket::new(stream, schema.clone(), protocol)
+                .on_connection_init(on_connection_init)
+                .serve()
+        })
 }
 
 #[tokio::main]
@@ -86,7 +116,8 @@ async fn main() {
 
     let astronaut_commander =
         AstronautCommander::new(emitter.clone(), state.clone(), token_impl.clone());
-    let astronaut_querier = AstronautQuerier::new(listener.clone(), state.clone());
+    let astronaut_querier =
+        AstronautQuerier::new(listener.clone(), state.clone(), token_impl.clone());
     let astronaut_synchronizer = AstronautSynchronizer::new(listener.clone(), state.clone());
 
     tokio::spawn(async move { astronaut_synchronizer.sync_events_to_state().await });
@@ -99,8 +130,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/", get(graphql_playground).post(graphql_handler))
-        .route_service("/ws", GraphQLSubscription::new(schema.clone()))
-        .layer(Extension(token_impl))
+        .route("/ws", get(graphql_ws_handler))
         .layer(Extension(schema));
 
     Server::bind(&"0.0.0.0:8000".parse().unwrap())
