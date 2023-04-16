@@ -14,8 +14,6 @@ use tokio_stream::StreamExt;
 #[derive(Debug, Error)]
 pub enum AstronautSynchronizerError {
     #[error(transparent)]
-    MemStateImplError(#[from] redis::RedisError),
-    #[error(transparent)]
     StateImplError(#[from] mongodb::error::Error),
 }
 

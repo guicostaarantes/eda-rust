@@ -83,4 +83,21 @@ impl MongoStateImpl {
             .await?;
         Ok(document.clone())
     }
+
+    pub async fn delete_one_by_id<T: DeserializeOwned + Unpin + Send + Sync>(
+        &self,
+        collection_name: &str,
+        id: &str,
+    ) -> Result<()> {
+        match self
+            .client
+            .database(&self.db_name)
+            .collection::<T>(collection_name)
+            .delete_one(doc! {"_id": id}, None)
+            .await
+        {
+            Ok(_) => Ok(()),
+            Err(err) => Err(err),
+        }
+    }
 }

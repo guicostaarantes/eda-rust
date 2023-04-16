@@ -15,7 +15,7 @@ impl QueryRoot {
     ) -> Result<String, AstronautQuerierError> {
         match ctx.data_opt::<RawToken>() {
             Some(raw_token) => Ok(raw_token.0.clone()),
-            None => Err(AstronautQuerierError::TokenNotFound),
+            None => Err(AstronautQuerierError::Forbidden),
         }
     }
 
@@ -30,7 +30,7 @@ impl QueryRoot {
                     .get_astronaut_by_id(raw_token, id)
                     .await
             }
-            None => Err(AstronautQuerierError::TokenNotFound),
+            None => Err(AstronautQuerierError::Forbidden),
         }
     }
 }

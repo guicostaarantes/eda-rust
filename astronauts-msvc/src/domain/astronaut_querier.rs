@@ -1,11 +1,13 @@
 use crate::domain::astronaut_model::Astronaut;
 use crate::domain::astronaut_model::AstronautDocument;
 use crate::domain::astronaut_model::AstronautUpdatedEvent;
+use crate::domain::token_model::AccessTokenPayload;
+use crate::domain::token_model::Permission;
 use crate::providers::json::JsonSerializerImpl;
 use crate::providers::listener::KafkaConsumerImpl;
 use crate::providers::state::MongoStateImpl;
+use crate::providers::token::JwtTokenImpl;
 use crate::providers::token::RawToken;
-use crate::providers::token::TokenImpl;
 use log::error;
 use std::sync::Arc;
 use thiserror::Error;
@@ -23,8 +25,6 @@ pub enum AstronautQuerierError {
     MpscChannelSendError,
     #[error("astronaut not found")]
     AstronautNotFound,
-    #[error("token not found")]
-    TokenNotFound,
     #[error("forbidden")]
     Forbidden,
 }
@@ -33,14 +33,14 @@ pub enum AstronautQuerierError {
 pub struct AstronautQuerier {
     listener: Arc<KafkaConsumerImpl>,
     state: Arc<MongoStateImpl>,
-    token: Arc<TokenImpl>,
+    token: Arc<JwtTokenImpl>,
 }
 
 impl AstronautQuerier {
     pub fn new(
         listener: Arc<KafkaConsumerImpl>,
         state: Arc<MongoStateImpl>,
-        token: Arc<TokenImpl>,
+        token: Arc<JwtTokenImpl>,
     ) -> Self {
         Self {
             listener,
@@ -50,37 +50,25 @@ impl AstronautQuerier {
     }
 }
 
-async fn allow_get_astronaut_by_id(
-    token_impl: Arc<TokenImpl>,
-    raw_token: &RawToken,
-) -> Result<(), AstronautQuerierError> {
-    match token_impl.fetch_token(raw_token).await {
-        Ok(token) => {
-            let allowed = token.payload.permissions.iter().any(|perm| {
-                if perm == &"GET_ANY_ASTRONAUT" {
-                    true
-                } else {
-                    false
-                }
-            });
-
-            if allowed {
-                Ok(())
-            } else {
-                Err(AstronautQuerierError::Forbidden)
-            }
-        }
-        Err(_) => Err(AstronautQuerierError::TokenNotFound),
-    }
-}
-
 impl AstronautQuerier {
     pub async fn get_astronaut_by_id(
         &self,
         raw_token: &RawToken,
         id: String,
     ) -> Result<Astronaut, AstronautQuerierError> {
-        allow_get_astronaut_by_id(self.token.clone(), raw_token).await?;
+        match self.token.validate_token::<AccessTokenPayload>(raw_token) {
+            Ok(token) => {
+                if token.permissions.contains(&Permission::GetAnyAstronaut)
+                    || (token.permissions.contains(&Permission::GetOwnAstronaut)
+                        && token.astronaut_id == id)
+                {
+                    Ok(())
+                } else {
+                    Err(AstronautQuerierError::Forbidden)
+                }
+            }
+            Err(_) => Err(AstronautQuerierError::Forbidden),
+        }?;
 
         match self
             .state
@@ -119,19 +107,8 @@ impl AstronautQuerier {
             .listener
             .listen_multiple(&["astronaut_updated"], "mongo");
 
-        let token_impl = self.token.clone();
-        let raw_token_c = raw_token.clone();
-
         let task = tokio::spawn(async move {
             while let Some(r) = stream.next().await {
-                match allow_get_astronaut_by_id(token_impl.clone(), &raw_token_c).await {
-                    Ok(_) => {}
-                    Err(_) => {
-                        kill_tx.send(()).unwrap_or(());
-                        break;
-                    }
-                };
-
                 match r {
                     Ok(re) => match re.topic_index {
                         0 => {
@@ -170,10 +147,22 @@ impl AstronautQuerier {
             }
         });
 
+        let task2 = match self.token.get_token_seconds_remaining(raw_token) {
+            Ok(seconds) => Ok(tokio::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_secs(seconds)).await;
+                match kill_tx.send(()) {
+                    Err(_) => error!("error sending kill signal after token expired"),
+                    _ => {}
+                };
+            })),
+            Err(_) => Err(AstronautQuerierError::Forbidden),
+        }?;
+
         tokio::spawn(async move {
             tokio::select! {
                 _ = tx2.closed() => {
                     task.abort();
+                    task2.abort();
                 }
                 _ = kill_rx => {
                     task.abort();

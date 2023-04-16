@@ -21,7 +21,7 @@ impl SubscriptionRoot {
                     .get_astronaut_by_id_stream(raw_token, id)
                     .await
             }
-            None => Err(AstronautQuerierError::TokenNotFound),
+            None => Err(AstronautQuerierError::Forbidden),
         }
     }
 }

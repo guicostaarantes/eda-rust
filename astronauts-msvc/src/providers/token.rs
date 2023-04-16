@@ -1,121 +1,114 @@
-use crate::providers::json::JsonSerializerImpl;
-use crate::providers::mem_state::RedisMemStateImpl;
-use crate::providers::random::RandomImpl;
-use chrono::DateTime;
-use chrono::Duration;
-use chrono::NaiveDateTime;
 use chrono::Utc;
-use serde::Deserialize;
+use jwt_simple::prelude::Claims;
+use jwt_simple::prelude::Duration;
+use jwt_simple::prelude::NoCustomClaims;
+use jwt_simple::prelude::RS256KeyPair;
+use jwt_simple::prelude::RS256PublicKey;
+use jwt_simple::prelude::RSAKeyPairLike;
+use jwt_simple::prelude::RSAPublicKeyLike;
+use jwt_simple::prelude::VerificationOptions;
+use serde::de::DeserializeOwned;
 use serde::Serialize;
-use std::sync::Arc;
 use thiserror::Error;
 
 #[derive(Clone)]
-pub struct TokenImpl {
-    mem_state: Arc<RedisMemStateImpl>,
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-pub struct TokenPayload {
-    pub astronaut_id: String,
-    pub permissions: Vec<String>,
+pub struct JwtTokenImpl {
+    public_keys: Vec<RS256PublicKey>,
+    private_key: RS256KeyPair,
 }
 
 #[derive(Clone)]
 pub struct RawToken(pub String);
 
-pub struct Token {
-    pub id: String,
-    pub payload: TokenPayload,
-    pub expires_at: DateTime<Utc>,
-}
-
 #[derive(Debug, Error)]
 pub enum TokenImplError {
     #[error(transparent)]
-    MemStateImplError(#[from] redis::RedisError),
-    #[error(transparent)]
-    JsonSerializerImplError(#[from] serde_json::Error),
-    #[error("bad timestamp")]
-    BadTimestamp,
-    #[error("token expired")]
-    TokenExpired,
+    JwtImplError(#[from] jwt_simple::Error),
+    #[error("token without expiration date")]
+    TokenWithoutExpirationDate,
 }
 
-impl TokenImpl {
-    pub fn new(mem_state: Arc<RedisMemStateImpl>) -> Self {
-        Self { mem_state }
+impl JwtTokenImpl {
+    pub fn new(
+        public_keys_pem: Vec<String>,
+        private_key_pem: String,
+    ) -> Result<Self, TokenImplError> {
+        let public_keys = public_keys_pem
+            .iter()
+            .map(|pem| RS256PublicKey::from_pem(&pem))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let private_key = RS256KeyPair::from_pem(&private_key_pem)?;
+
+        Ok(Self {
+            public_keys,
+            private_key,
+        })
     }
 }
 
-impl TokenImpl {
-    pub async fn produce_token(
+impl JwtTokenImpl {
+    pub fn produce_token<T: Serialize + DeserializeOwned>(
         &self,
-        astronaut_id: &str,
-        permissions: &[&str],
         expires_in: u64,
-    ) -> Result<Token, TokenImplError> {
-        let expires_at = Utc::now() + Duration::seconds(expires_in as i64);
-
-        let id = format!("{}.{}", RandomImpl::string(64), expires_at.timestamp());
-
-        let payload = TokenPayload {
-            astronaut_id: astronaut_id.to_string(),
-            permissions: permissions.iter().map(|s| s.to_string()).collect(),
-        };
-
-        let serialized_payload = match JsonSerializerImpl::serialize(&payload) {
-            Ok(payload) => Ok(payload),
-            Err(err) => Err(TokenImplError::JsonSerializerImplError(err)),
-        }?;
-
-        self.mem_state
-            .set(&id, &serialized_payload, Some(expires_in))
-            .await?;
-
-        Ok(Token {
-            id,
-            payload,
-            expires_at,
-        })
+        extra_parameters: T,
+    ) -> Result<String, TokenImplError> {
+        let claims =
+            Claims::with_custom_claims::<T>(extra_parameters, Duration::from_secs(expires_in));
+        let token = self.private_key.sign(claims)?;
+        Ok(token)
     }
 }
 
-impl TokenImpl {
-    pub async fn fetch_token(&self, raw_token: &RawToken) -> Result<Token, TokenImplError> {
-        let expires_at = match raw_token.0.split_once('.') {
-            Some((_, expires_at)) => match expires_at.parse::<i64>() {
-                Ok(expires_at_i64) => match NaiveDateTime::from_timestamp_opt(expires_at_i64, 0) {
-                    Some(tmstp) => Ok(DateTime::from_utc(tmstp, Utc)),
-                    None => Err(TokenImplError::BadTimestamp),
-                },
-                Err(_) => Err(TokenImplError::BadTimestamp),
-            },
-            None => Err(TokenImplError::BadTimestamp),
-        }?;
+impl JwtTokenImpl {
+    pub fn validate_token<T: Serialize + DeserializeOwned>(
+        &self,
+        raw_token: &RawToken,
+    ) -> Result<T, TokenImplError> {
+        self.public_keys
+            .iter()
+            .find_map(|key| {
+                match key.verify_token::<T>(
+                    &raw_token.0,
+                    Some(VerificationOptions {
+                        time_tolerance: None,
+                        ..VerificationOptions::default()
+                    }),
+                ) {
+                    Ok(claims) => Some(claims.custom),
+                    Err(_) => None,
+                }
+            })
+            .ok_or(TokenImplError::JwtImplError(jwt_simple::Error::new(
+                jwt_simple::JWTError::InvalidSignature,
+            )))
+    }
+}
 
-        if expires_at < Utc::now() {
-            return Err(TokenImplError::TokenExpired);
+impl JwtTokenImpl {
+    pub fn get_token_seconds_remaining(&self, raw_token: &RawToken) -> Result<u64, TokenImplError> {
+        let expires_at = self
+            .public_keys
+            .iter()
+            .find_map(|key| {
+                match key.verify_token::<NoCustomClaims>(
+                    &raw_token.0,
+                    Some(VerificationOptions {
+                        time_tolerance: None,
+                        ..VerificationOptions::default()
+                    }),
+                ) {
+                    Ok(claims) => Some(claims.expires_at),
+                    Err(_) => None,
+                }
+            })
+            .ok_or(TokenImplError::JwtImplError(jwt_simple::Error::new(
+                jwt_simple::JWTError::InvalidSignature,
+            )))?;
+
+        match expires_at {
+            Some(exp) => Ok(exp.as_secs() - Utc::now().timestamp() as u64),
+            None => Err(TokenImplError::TokenWithoutExpirationDate),
         }
-
-        let content = self.mem_state.get(&raw_token.0).await?;
-
-        let payload = match JsonSerializerImpl::deserialize::<TokenPayload>(&content) {
-            Ok(result) => Ok(result),
-            Err(err) => Err(TokenImplError::JsonSerializerImplError(err)),
-        }?;
-
-        Ok(Token {
-            id: raw_token.0.to_string(),
-            payload,
-            expires_at,
-        })
-    }
-}
-
-impl TokenImpl {
-    pub async fn destroy_token(&self, token: &str) -> Result<(), TokenImplError> {
-        self.mem_state.unset(&token).await?;
-        Ok(())
     }
 }

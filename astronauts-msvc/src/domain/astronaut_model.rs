@@ -57,13 +57,6 @@ pub struct CreateAstronautInput {
 }
 
 #[derive(InputObject)]
-pub struct GetAstronautCredentialsInput {
-    pub name: String,
-    #[graphql(secret)]
-    pub password: String,
-}
-
-#[derive(InputObject)]
 pub struct UpdateAstronautInput {
     pub name: Option<String>,
     #[graphql(secret)]

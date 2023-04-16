@@ -2,15 +2,17 @@ use crate::domain::astronaut_model::AstronautCreatedEvent;
 use crate::domain::astronaut_model::AstronautDocument;
 use crate::domain::astronaut_model::AstronautUpdatedEvent;
 use crate::domain::astronaut_model::CreateAstronautInput;
-use crate::domain::astronaut_model::GetAstronautCredentialsInput;
 use crate::domain::astronaut_model::UpdateAstronautInput;
+use crate::domain::token_model::AccessTokenPayload;
+use crate::domain::token_model::Permission;
 use crate::providers::emitter::KafkaEmitterImpl;
 use crate::providers::hash::HashImpl;
 use crate::providers::hash::HashImplError;
 use crate::providers::json::JsonSerializerImpl;
+use crate::providers::random::RandomImpl;
 use crate::providers::state::MongoStateImpl;
+use crate::providers::token::JwtTokenImpl;
 use crate::providers::token::RawToken;
-use crate::providers::token::TokenImpl;
 use crate::providers::token::TokenImplError;
 use log::error;
 use log::info;
@@ -35,10 +37,6 @@ pub enum AstronautCommanderError {
     AstronautWithNameExists,
     #[error("no fields to update")]
     NoFieldsToUpdate,
-    #[error("password does not match")]
-    PasswordDoesNotMatch,
-    #[error("token not found")]
-    TokenNotFound,
     #[error("forbidden")]
     Forbidden,
 }
@@ -47,19 +45,19 @@ pub enum AstronautCommanderError {
 pub struct AstronautCommander {
     emitter: Arc<KafkaEmitterImpl>,
     state: Arc<MongoStateImpl>,
-    token: Arc<TokenImpl>,
+    token: Arc<JwtTokenImpl>,
 }
 
 impl AstronautCommander {
     pub fn new(
         emitter: Arc<KafkaEmitterImpl>,
         state: Arc<MongoStateImpl>,
-        token_impl: Arc<TokenImpl>,
+        token: Arc<JwtTokenImpl>,
     ) -> Self {
         Self {
             emitter,
             state,
-            token: token_impl,
+            token,
         }
     }
 }
@@ -69,7 +67,7 @@ impl AstronautCommander {
         &self,
         input: CreateAstronautInput,
     ) -> Result<String, AstronautCommanderError> {
-        let id = uuid::Uuid::new_v4().to_string();
+        let id = RandomImpl::uuid();
 
         info!("creating astronaut with id {}", id);
 
@@ -112,23 +110,18 @@ impl AstronautCommander {
     ) -> Result<String, AstronautCommanderError> {
         info!("updating astronaut with id {}", id);
 
-        match self.token.fetch_token(raw_token).await {
+        match self.token.validate_token::<AccessTokenPayload>(raw_token) {
             Ok(token) => {
-                let allowed = token.payload.permissions.iter().any(|perm| {
-                    if perm == &"UPDATE_OWN_ASTRONAUT" && token.payload.astronaut_id == id {
-                        true
-                    } else {
-                        false
-                    }
-                });
-
-                if allowed {
+                if token.permissions.contains(&Permission::UpdateAnyAstronaut)
+                    || (token.permissions.contains(&Permission::UpdateOwnAstronaut)
+                        && token.astronaut_id == id)
+                {
                     Ok(())
                 } else {
                     Err(AstronautCommanderError::Forbidden)
                 }
             }
-            Err(_) => Err(AstronautCommanderError::TokenNotFound),
+            Err(_) => Err(AstronautCommanderError::Forbidden),
         }?;
 
         match self
@@ -181,54 +174,5 @@ impl AstronautCommander {
         info!("astronaut updated with id {}", id);
 
         Ok(id)
-    }
-}
-
-impl AstronautCommander {
-    pub async fn get_astronaut_credentials(
-        &self,
-        input: GetAstronautCredentialsInput,
-    ) -> Result<String, AstronautCommanderError> {
-        let astronaut = match self
-            .state
-            .find_one_by_field::<AstronautDocument>("astronauts", "name", &input.name)
-            .await
-        {
-            Err(err) => Err(AstronautCommanderError::StateImplError(err)),
-            Ok(None) => Err(AstronautCommanderError::AstronautNotFound),
-            Ok(Some(astronaut)) => Ok(astronaut),
-        }?;
-
-        match HashImpl::verify(&input.password, &astronaut.password) {
-            Ok(_) => Ok(()),
-            Err(_) => Err(AstronautCommanderError::PasswordDoesNotMatch),
-        }?;
-
-        let token = match self
-            .token
-            .produce_token(
-                &astronaut.id,
-                &["GET_ANY_ASTRONAUT", "UPDATE_OWN_ASTRONAUT"],
-                60,
-            )
-            .await
-        {
-            Ok(token) => Ok(token),
-            Err(err) => Err(AstronautCommanderError::TokenImplError(err)),
-        }?;
-
-        Ok(token.id)
-    }
-}
-
-impl AstronautCommander {
-    pub async fn unset_astronaut_credentials(
-        &self,
-        token: String,
-    ) -> Result<(), AstronautCommanderError> {
-        match self.token.destroy_token(&token).await {
-            Ok(_) => Ok(()),
-            Err(err) => Err(AstronautCommanderError::TokenImplError(err)),
-        }
     }
 }
