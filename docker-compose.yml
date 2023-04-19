@@ -1,20 +1,37 @@
 version: '3.9'
 services:
 
-  # astronauts microservice pod
-  astronauts-msvc:
+  # auth microservice pod
+  auth-msvc:
     build:
-      context: astronauts-msvc
+      context: auth-msvc
     ports:
       - 7001:8000
     environment:
       RUST_LOG: info
       KAFKA_URL: kafka:29092
-      MONGO_URL: mongodb://astronauts-msvc:8b9z0mE37Cv1OK5I@mongo:27017/astronauts
-      MONGO_DATABASE: astronauts
-      UNIQUE_POD_ID: ILw7xElp3F9Dwc2j
+      MONGO_URL: mongodb://auth-msvc:IBAQDiiCGaFZUDoC@mongo:27017/auth-db
+      MONGO_DATABASE: auth-db
+      UNIQUE_POD_ID: b5FjjCz92lmzCk4l
       PUBLIC_KEYS_PEM: -----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4oghmhWVA6Ai/Z75BJQ9\nm4KTuwm+RY4ws/dpZswpOJcNG5Y1mDv21Tie+LWt3VrcyQei9HWU9GsGPNOTYZqE\nnstOYWiSMV90VVrjG+PAe98A21nvI5u+2F454XXb8IibzCysRw+pV1cAOs96s/6w\nZcA8FmRhIafXaqS772r4nOX0cm6yNCLemyz9k9oBFnFXPu5iyuj0k9Ll39+SHNXY\nk3nCj3BXW3bhoTyOxj4Nqp1nhssb/aezgrY1oHrqOZlaHWxPEh27D8tPqQgiKM1E\nWYPv8StQkuLDTw5Z4ofEkyjgZnpseqCAxmeixh3o3WemLNbGFLtKBjtRqxfFknR1\nfwIDAQAB\n-----END PUBLIC KEY-----\n
       PRIVATE_KEY_PEM: -----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDiiCGaFZUDoCL9\nnvkElD2bgpO7Cb5FjjCz92lmzCk4lw0bljWYO/bVOJ74ta3dWtzJB6L0dZT0awY8\n05NhmoSey05haJIxX3RVWuMb48B73wDbWe8jm77YXjnhddvwiJvMLKxHD6lXVwA6\nz3qz/rBlwDwWZGEhp9dqpLvvavic5fRybrI0It6bLP2T2gEWcVc+7mLK6PST0uXf\n35Ic1diTecKPcFdbduGhPI7GPg2qnWeGyxv9p7OCtjWgeuo5mVodbE8SHbsPy0+p\nCCIozURZg+/xK1CS4sNPDlnih8STKOBmemx6oIDGZ6LGHejdZ6Ys1sYUu0oGO1Gr\nF8WSdHV/AgMBAAECggEAQ/rcMpQ1crAUsA2L5w7hahCGasOiwNbJ0Mf3bmzoFd5m\nhZfPH48nJJdoRXSn51yEEyPih//dIngXmBtaCBlJoSmbrOmnrX9att6edtkjA0lJ\nxYm4lPQBEoc8UWeACC/GqT/itzSA+f/Wxs9KoEdXAkHtBj87UtE+ePdUmqV8VACx\ni56iscFUGMS8diIGVQTb4jEG0p9S0kyvQ3CyreawkB96Se2znHE8plnXwHBziJBz\nL7isbSuuDos4B4LG1fCmXlfn3LpGNrcRXc2ojvsn49H6ls+1ogHpNgOU9/A7EZGG\nZ8XuiKevJLYo1ZoSJ4GUDtylWIyzgb3dVgByQXKcIQKBgQD041k1QfHigSxUeyD3\nNkT6t5Q3mD3qiKuVMN0H/nMAOPylp17h37B5whbSuZ9DxysMvdqQHmzi+/z2+Sp2\n2IG6or0qlQSUodOPgY2SvInt39KYYqA+HqXVxP12b787y/+bzPq3TJMK2NmbqLin\nahemz8A2aa/Oohy/ZCjLD3TdTwKBgQDsz42uMj8SH+a9wX3LG8LqCG1hmXJBJfYh\ncb2dSNeFYyTx/C3eDtpfSTbc/a/77LBUnN3njQPDi7FCDfDP8eWl0Yc3sW/NoSwC\n/y27FfCXldmBndjXXJ5a8iaCbYxK830LQcz/QB3xRPH2j4cGNCv8Y9xVrRMpP/Dr\ntCji+pW40QKBgFydx1VfFW5G0E87KiKVAc2YtJO6HmCfQ9Vu34lwcGn7I4I7JKVk\nhkfmYd9cmKF3qA5vl0O+XgwSpX96iNbd12KQvd5m8Y6NDYhOxQ5kA/5VEj7TvisA\nSFPq5rluVfL1mjyAb6n3af1GOjamvv+CHmPWWqm5muYZZan05YC23cn9AoGBAJPK\nkOynVS91k2bXzC8nW0T+D226+1BnZa3Hs4PmwwLvNk6DiQiuEmEna0MOXHeIZx/X\narIpErFGjFDiLGlK2XzcQFxks5cMwE/6e8rnzWh9T+qR3ZPCrN2rhJcf0U+xmFef\nMFYY6Nb7pVqwhp87jjwNAqTByFSVIEGqBV5q72gRAoGAeCzbCSvSmm8ss59cN/cT\nNC1UIF7TC33kXywp69q2o2VCoOuh7MYOyeHCqPYdv29634QbYDmMZiWrqYz/Not4\nMuffFe7qNstbhQLO7a7zXAQ1Zm8bnpHarGLmYKgQDjvwqiC3QzzdqeLdEErmIY5f\n1yawlL809gTUU/h5eOumqAo=\n-----END PRIVATE KEY-----\n
+    depends_on:
+      - mongo
+    restart: always
+  
+  # astronauts microservice pod
+  astronauts-msvc:
+    build:
+      context: astronauts-msvc
+    ports:
+      - 7002:8000
+    environment:
+      RUST_LOG: info
+      KAFKA_URL: kafka:29092
+      MONGO_URL: mongodb://astronauts-msvc:8b9z0mE37Cv1OK5I@mongo:27017/astronauts-db
+      MONGO_DATABASE: astronauts-db
+      UNIQUE_POD_ID: ILw7xElp3F9Dwc2j
+      PUBLIC_KEYS_PEM: -----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4oghmhWVA6Ai/Z75BJQ9\nm4KTuwm+RY4ws/dpZswpOJcNG5Y1mDv21Tie+LWt3VrcyQei9HWU9GsGPNOTYZqE\nnstOYWiSMV90VVrjG+PAe98A21nvI5u+2F454XXb8IibzCysRw+pV1cAOs96s/6w\nZcA8FmRhIafXaqS772r4nOX0cm6yNCLemyz9k9oBFnFXPu5iyuj0k9Ll39+SHNXY\nk3nCj3BXW3bhoTyOxj4Nqp1nhssb/aezgrY1oHrqOZlaHWxPEh27D8tPqQgiKM1E\nWYPv8StQkuLDTw5Z4ofEkyjgZnpseqCAxmeixh3o3WemLNbGFLtKBjtRqxfFknR1\nfwIDAQAB\n-----END PUBLIC KEY-----\n
     depends_on:
       - mongo
     restart: always
@@ -42,7 +59,7 @@ services:
     depends_on:
       - mongo
     command: "bash -c \"until mongosh \
-              --eval \\\"astronauts = db.getSiblingDB('astronauts'); if (astronauts.getUser('astronauts-msvc') == null) astronauts.createUser({user: 'astronauts-msvc', pwd: '8b9z0mE37Cv1OK5I', roles: ['readWrite']});\\\" \
+              --eval \\\"authdb = db.getSiblingDB('auth-db'); if (authdb.getUser('auth-msvc') == null) authdb.createUser({user: 'auth-msvc', pwd: 'IBAQDiiCGaFZUDoC', roles: ['readWrite']}); astronautsdb = db.getSiblingDB('astronauts-db'); if (astronautsdb.getUser('astronauts-msvc') == null) astronautsdb.createUser({user: 'astronauts-msvc', pwd: '8b9z0mE37Cv1OK5I', roles: ['readWrite']});\\\" \
               mongodb://root:sbH6Ob8IIdeSl2M65l4K8nGo8T4HuZDl@mongo:27017 \
               ; do sleep 2; done\""
 

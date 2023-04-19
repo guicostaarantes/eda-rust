@@ -1,6 +1,10 @@
 use chrono::Utc;
+use jwt_simple::prelude::Claims;
+use jwt_simple::prelude::Duration;
 use jwt_simple::prelude::NoCustomClaims;
+use jwt_simple::prelude::RS256KeyPair;
 use jwt_simple::prelude::RS256PublicKey;
+use jwt_simple::prelude::RSAKeyPairLike;
 use jwt_simple::prelude::RSAPublicKeyLike;
 use jwt_simple::prelude::VerificationOptions;
 use serde::de::DeserializeOwned;
@@ -10,6 +14,7 @@ use thiserror::Error;
 #[derive(Clone)]
 pub struct JwtTokenImpl {
     public_keys: Vec<RS256PublicKey>,
+    private_key: RS256KeyPair,
 }
 
 #[derive(Clone)]
@@ -24,13 +29,34 @@ pub enum TokenImplError {
 }
 
 impl JwtTokenImpl {
-    pub fn new(public_keys_pem: Vec<String>) -> Result<Self, TokenImplError> {
+    pub fn new(
+        public_keys_pem: Vec<String>,
+        private_key_pem: String,
+    ) -> Result<Self, TokenImplError> {
         let public_keys = public_keys_pem
             .iter()
             .map(|pem| RS256PublicKey::from_pem(&pem))
             .collect::<Result<Vec<_>, _>>()?;
 
-        Ok(Self { public_keys })
+        let private_key = RS256KeyPair::from_pem(&private_key_pem)?;
+
+        Ok(Self {
+            public_keys,
+            private_key,
+        })
+    }
+}
+
+impl JwtTokenImpl {
+    pub fn produce_token<T: Serialize + DeserializeOwned>(
+        &self,
+        expires_in: u64,
+        extra_parameters: T,
+    ) -> Result<String, TokenImplError> {
+        let claims =
+            Claims::with_custom_claims::<T>(extra_parameters, Duration::from_secs(expires_in));
+        let token = self.private_key.sign(claims)?;
+        Ok(token)
     }
 }
 

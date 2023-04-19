@@ -13,7 +13,6 @@ use serde::Serialize;
 pub struct Astronaut {
     pub id: String,
     pub name: String,
-    pub password: String,
     pub birth_date: DateTime<Utc>,
 }
 
@@ -76,7 +75,6 @@ pub struct AstronautDocument {
     #[serde(rename = "_id")]
     pub id: String,
     pub name: String,
-    pub password: String,
     pub birth_date: DateTime<Utc>,
 }
 
@@ -84,8 +82,6 @@ pub struct AstronautDocument {
 pub struct AstronautUpdatedDocument {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub password: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub birth_date: Option<DateTime<Utc>>,
 }
@@ -116,7 +112,6 @@ impl From<&AstronautDocument> for Astronaut {
         Self {
             id: input.id.clone(),
             name: input.name.clone(),
-            password: input.password.clone(),
             birth_date: input.birth_date.clone(),
         }
     }
@@ -127,7 +122,6 @@ impl From<&AstronautCreatedEvent> for AstronautDocument {
         Self {
             id: input.id.clone(),
             name: input.name.clone(),
-            password: input.password.clone(),
             birth_date: input.birth_date.clone(),
         }
     }
@@ -137,7 +131,6 @@ impl From<&AstronautUpdatedEvent> for AstronautUpdatedDocument {
     fn from(input: &AstronautUpdatedEvent) -> Self {
         Self {
             name: input.name.clone(),
-            password: input.password.clone(),
             birth_date: input.birth_date.clone(),
         }
     }
@@ -148,7 +141,6 @@ impl Astronaut {
         Self {
             id: self.id.clone(),
             name: event.name.clone().unwrap_or(self.name.clone()),
-            password: event.password.clone().unwrap_or(self.password.clone()),
             birth_date: event.birth_date.clone().unwrap_or(self.birth_date.clone()),
         }
     }
