@@ -36,6 +36,23 @@ services:
       - mongo
     restart: always
 
+  # missions microservice pod
+  missions-msvc:
+    build:
+      context: missions-msvc
+    ports:
+      - 7003:8000
+    environment:
+      RUST_LOG: info
+      KAFKA_URL: kafka:29092
+      MONGO_URL: mongodb://missions-msvc:Wxs9KoEdXAkHtBj8@mongo:27017/missions-db
+      MONGO_DATABASE: missions-db
+      UNIQUE_POD_ID: Nc1diTecKPcFdbdu
+      PUBLIC_KEYS_PEM: -----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4oghmhWVA6Ai/Z75BJQ9\nm4KTuwm+RY4ws/dpZswpOJcNG5Y1mDv21Tie+LWt3VrcyQei9HWU9GsGPNOTYZqE\nnstOYWiSMV90VVrjG+PAe98A21nvI5u+2F454XXb8IibzCysRw+pV1cAOs96s/6w\nZcA8FmRhIafXaqS772r4nOX0cm6yNCLemyz9k9oBFnFXPu5iyuj0k9Ll39+SHNXY\nk3nCj3BXW3bhoTyOxj4Nqp1nhssb/aezgrY1oHrqOZlaHWxPEh27D8tPqQgiKM1E\nWYPv8StQkuLDTw5Z4ofEkyjgZnpseqCAxmeixh3o3WemLNbGFLtKBjtRqxfFknR1\nfwIDAQAB\n-----END PUBLIC KEY-----\n
+    depends_on:
+      - mongo
+    restart: always
+
   # mongo cluster
   mongo:
     image: mongo
@@ -59,7 +76,7 @@ services:
     depends_on:
       - mongo
     command: "bash -c \"until mongosh \
-              --eval \\\"authdb = db.getSiblingDB('auth-db'); if (authdb.getUser('auth-msvc') == null) authdb.createUser({user: 'auth-msvc', pwd: 'IBAQDiiCGaFZUDoC', roles: ['readWrite']}); astronautsdb = db.getSiblingDB('astronauts-db'); if (astronautsdb.getUser('astronauts-msvc') == null) astronautsdb.createUser({user: 'astronauts-msvc', pwd: '8b9z0mE37Cv1OK5I', roles: ['readWrite']});\\\" \
+              --eval \\\"authdb = db.getSiblingDB('auth-db'); if (authdb.getUser('auth-msvc') == null) authdb.createUser({user: 'auth-msvc', pwd: 'IBAQDiiCGaFZUDoC', roles: ['readWrite']}); astronautsdb = db.getSiblingDB('astronauts-db'); if (astronautsdb.getUser('astronauts-msvc') == null) astronautsdb.createUser({user: 'astronauts-msvc', pwd: '8b9z0mE37Cv1OK5I', roles: ['readWrite']}); missionsdb = db.getSiblingDB('missions-db'); if (missionsdb.getUser('missions-msvc') == null) missionsdb.createUser({user: 'missions-msvc', pwd: 'Wxs9KoEdXAkHtBj8', roles: ['readWrite']})\\\" \
               mongodb://root:sbH6Ob8IIdeSl2M65l4K8nGo8T4HuZDl@mongo:27017 \
               ; do sleep 2; done\""
 
@@ -107,6 +124,14 @@ services:
              kafka-topics --zookeeper zookeeper:2181 --alter --topic astronaut_created --config cleanup.policy=compact && \
              kafka-topics --zookeeper zookeeper:2181 --create --topic astronaut_updated --partitions 1 --replication-factor 1 --if-not-exists && \
              kafka-topics --zookeeper zookeeper:2181 --alter --topic astronaut_updated --config cleanup.policy=compact && \
+             kafka-topics --zookeeper zookeeper:2181 --create --topic mission_created --partitions 1 --replication-factor 1 --if-not-exists && \
+             kafka-topics --zookeeper zookeeper:2181 --alter --topic mission_created --config cleanup.policy=compact && \
+             kafka-topics --zookeeper zookeeper:2181 --create --topic mission_updated --partitions 1 --replication-factor 1 --if-not-exists && \
+             kafka-topics --zookeeper zookeeper:2181 --alter --topic mission_updated --config cleanup.policy=compact && \
+             kafka-topics --zookeeper zookeeper:2181 --create --topic crew_member_added --partitions 1 --replication-factor 1 --if-not-exists && \
+             kafka-topics --zookeeper zookeeper:2181 --alter --topic crew_member_added --config cleanup.policy=compact && \
+             kafka-topics --zookeeper zookeeper:2181 --create --topic crew_member_removed --partitions 1 --replication-factor 1 --if-not-exists && \
+             kafka-topics --zookeeper zookeeper:2181 --alter --topic crew_member_removed --config cleanup.policy=compact && \
              kafka-topics --zookeeper zookeeper:2181 --create --topic refresh_token_created --partitions 1 --replication-factor 1 --if-not-exists && \
              kafka-topics --zookeeper zookeeper:2181 --alter --topic refresh_token_created --config cleanup.policy=delete && \
              kafka-topics --zookeeper zookeeper:2181 --create --topic refresh_token_revoked --partitions 1 --replication-factor 1 --if-not-exists && \
