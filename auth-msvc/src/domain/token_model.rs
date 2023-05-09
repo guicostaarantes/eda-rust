@@ -5,8 +5,13 @@ use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 
-pub const PASSWORD_GRANT_PERMISSIONS: [Permission; 2] =
-    [Permission::GetAnyAstronaut, Permission::UpdateOwnAstronaut];
+pub const PASSWORD_GRANT_PERMISSIONS: [Permission; 5] = [
+    Permission::GetAnyAstronaut,
+    Permission::UpdateOwnAstronaut,
+    Permission::CreateMission,
+    Permission::UpdateOwnMission,
+    Permission::GetAnyMission,
+];
 pub const REFRESH_TOKEN_EXPIRES_IN_SECONDS: u64 = 604800;
 pub const ACCESS_TOKEN_EXPIRES_IN_SECONDS: u64 = 900;
 
@@ -93,4 +98,9 @@ pub enum Permission {
     GetOwnAstronaut,
     UpdateAnyAstronaut,
     UpdateOwnAstronaut,
+    CreateMission,
+    UpdateAnyMission,
+    UpdateOwnMission,
+    GetAnyMission,
+    GetOwnMission,
 }

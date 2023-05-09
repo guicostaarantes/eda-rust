@@ -11,9 +11,9 @@ use crate::providers::state::MongoStateImpl;
 use crate::providers::token::JwtTokenImpl;
 use crate::providers::token::RawToken;
 use crate::schema::AstronautsSchema;
-use crate::schema::MutationRoot;
-use crate::schema::QueryRoot;
-use crate::schema::SubscriptionRoot;
+use crate::schema::Mutation;
+use crate::schema::Query;
+use crate::schema::Subscription;
 use async_graphql::http::playground_source;
 use async_graphql::http::GraphQLPlaygroundConfig;
 use async_graphql::http::ALL_WEBSOCKET_PROTOCOLS;
@@ -127,7 +127,7 @@ async fn main() {
         AstronautSynchronizer::new(listener_impl.clone(), state_impl.clone());
     tokio::spawn(async move { astronaut_synchronizer.sync_events_to_state().await });
 
-    let schema = Schema::build(QueryRoot, MutationRoot, SubscriptionRoot)
+    let schema = Schema::build(Query, Mutation, Subscription)
         .data(astronaut_commander)
         .data(astronaut_querier)
         .finish();

@@ -9,7 +9,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 // Pure types for domain use
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct Astronaut {
     pub id: String,
     pub name: String,

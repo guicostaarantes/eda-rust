@@ -20,4 +20,6 @@ pub enum Permission {
     GetOwnAstronaut,
     UpdateAnyAstronaut,
     UpdateOwnAstronaut,
+    #[serde(other)]
+    Other,
 }

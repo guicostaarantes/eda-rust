@@ -3,8 +3,8 @@ mod query;
 mod subscription;
 
 use async_graphql::Schema;
-pub use mutation::MutationRoot;
-pub use query::QueryRoot;
-pub use subscription::SubscriptionRoot;
+pub use mutation::Mutation;
+pub use query::Query;
+pub use subscription::Subscription;
 
-pub type AstronautsSchema = Schema<QueryRoot, MutationRoot, SubscriptionRoot>;
+pub type AstronautsSchema = Schema<Query, Mutation, Subscription>;

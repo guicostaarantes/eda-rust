@@ -6,11 +6,11 @@ use async_graphql::Context;
 use async_graphql::Subscription;
 use tokio_stream::Stream;
 
-pub struct SubscriptionRoot;
+pub struct Subscription;
 
 #[Subscription]
-impl SubscriptionRoot {
-    async fn astronaut_by_id(
+impl Subscription {
+    async fn astronaut(
         &self,
         ctx: &Context<'_>,
         id: String,

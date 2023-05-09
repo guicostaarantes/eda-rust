@@ -6,10 +6,10 @@ use crate::providers::token::RawToken;
 use async_graphql::Context;
 use async_graphql::Object;
 
-pub struct MutationRoot;
+pub struct Mutation;
 
 #[Object]
-impl MutationRoot {
+impl Mutation {
     async fn exchange_astronaut_credentials_for_token_pair(
         &self,
         ctx: &Context<'_>,
