@@ -1,0 +1,14 @@
+federation_version: =2.3.2
+subgraphs:
+  auth:
+    routing_url: http://auth-msvc:8000
+    schema:
+      file: ./auth.graphql
+  astronauts:
+    routing_url: http://astronauts-msvc:8000
+    schema:
+      file: ./astronauts.graphql
+  missions:
+    routing_url: http://missions-msvc:8000
+    schema:
+      file: ./missions.graphql

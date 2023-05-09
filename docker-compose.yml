@@ -53,6 +53,17 @@ services:
       - mongo
     restart: always
 
+  # apollo gateway
+  apollo-router:
+    image: ghcr.io/apollographql/router:v1.17.0
+    restart: always
+    volumes:
+      - ./gateway/supergraph.graphql:/dist/schema/supergraph.graphql
+      - ./gateway/router.yml:/dist/config/router.yml
+    command: [ "--dev", "-c", "config/router.yml", "-s", "schema/supergraph.graphql", "--log", "info" ]
+    ports:
+      - "4001:4000"
+
   # mongo cluster
   mongo:
     image: mongo
