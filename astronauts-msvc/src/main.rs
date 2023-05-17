@@ -1,93 +1,18 @@
 mod domain;
+mod http;
 mod providers;
-mod schema;
 
 use crate::domain::astronaut_commander::AstronautCommander;
 use crate::domain::astronaut_querier::AstronautQuerier;
 use crate::domain::astronaut_synchronizer::AstronautSynchronizer;
+use crate::http::astronauts_route;
 use crate::providers::emitter::KafkaEmitterImpl;
 use crate::providers::listener::KafkaConsumerImpl;
 use crate::providers::state::MongoStateImpl;
 use crate::providers::token::JwtTokenImpl;
-use crate::providers::token::RawToken;
-use crate::schema::AstronautsSchema;
-use crate::schema::Mutation;
-use crate::schema::Query;
-use crate::schema::Subscription;
-use async_graphql::http::playground_source;
-use async_graphql::http::GraphQLPlaygroundConfig;
-use async_graphql::http::ALL_WEBSOCKET_PROTOCOLS;
-use async_graphql::Schema;
-use async_graphql_axum::GraphQLProtocol;
-use async_graphql_axum::GraphQLRequest;
-use async_graphql_axum::GraphQLResponse;
-use async_graphql_axum::GraphQLWebSocket;
-use axum::extract::Extension;
-use axum::extract::WebSocketUpgrade;
-use axum::headers::HeaderMap;
-use axum::response::Html;
-use axum::response::IntoResponse;
-use axum::response::Response;
-use axum::routing::get;
-use axum::Router;
 use axum::Server;
 use std::env;
 use std::sync::Arc;
-
-async fn graphql_handler(
-    schema: Extension<AstronautsSchema>,
-    headers: HeaderMap,
-    req: GraphQLRequest,
-) -> GraphQLResponse {
-    let mut req = req.into_inner();
-
-    match headers.get("token") {
-        Some(value) => match value.to_str() {
-            Ok(val) => {
-                req = req.data(RawToken(val.to_string()));
-            }
-            Err(_) => {}
-        },
-        None => {}
-    }
-
-    schema.execute(req).await.into()
-}
-
-async fn graphql_playground() -> impl IntoResponse {
-    Html(playground_source(
-        GraphQLPlaygroundConfig::new("/").subscription_endpoint("/ws"),
-    ))
-}
-
-async fn graphql_ws_handler(
-    Extension(schema): Extension<AstronautsSchema>,
-    protocol: GraphQLProtocol,
-    websocket: WebSocketUpgrade,
-) -> Response {
-    let on_connection_init = |value: serde_json::Value| async move {
-        #[derive(serde::Deserialize)]
-        struct Payload {
-            token: String,
-        }
-
-        let mut data = async_graphql::Data::default();
-
-        if let Ok(payload) = serde_json::from_value::<Payload>(value) {
-            data.insert(RawToken(payload.token));
-        };
-
-        Ok(data)
-    };
-
-    websocket
-        .protocols(ALL_WEBSOCKET_PROTOCOLS)
-        .on_upgrade(move |stream| {
-            GraphQLWebSocket::new(stream, schema.clone(), protocol)
-                .on_connection_init(on_connection_init)
-                .serve()
-        })
-}
 
 #[tokio::main]
 async fn main() {
@@ -115,27 +40,26 @@ async fn main() {
     let token_impl =
         Arc::new(JwtTokenImpl::new(public_keys_pem).expect("could not import pem keys"));
 
-    let astronaut_commander =
-        AstronautCommander::new(emitter_impl.clone(), state_impl.clone(), token_impl.clone());
-    let astronaut_querier = AstronautQuerier::new(
+    let astronaut_commander = Arc::new(AstronautCommander::new(
+        emitter_impl.clone(),
+        state_impl.clone(),
+        token_impl.clone(),
+    ));
+    let astronaut_querier = Arc::new(AstronautQuerier::new(
         listener_impl.clone(),
         state_impl.clone(),
         token_impl.clone(),
-    );
+    ));
 
     let astronaut_synchronizer =
         AstronautSynchronizer::new(listener_impl.clone(), state_impl.clone());
     tokio::spawn(async move { astronaut_synchronizer.sync_events_to_state().await });
 
-    let schema = Schema::build(Query, Mutation, Subscription)
-        .data(astronaut_commander)
-        .data(astronaut_querier)
-        .finish();
-
-    let app = Router::new()
-        .route("/", get(graphql_playground).post(graphql_handler))
-        .route("/ws", get(graphql_ws_handler))
-        .layer(Extension(schema));
+    let app = astronauts_route(
+        token_impl.clone(),
+        astronaut_querier.clone(),
+        astronaut_commander.clone(),
+    );
 
     Server::bind(&"0.0.0.0:8000".parse().unwrap())
         .serve(app.into_make_service())

@@ -12,7 +12,6 @@ use crate::providers::json::JsonSerializerImpl;
 use crate::providers::random::RandomImpl;
 use crate::providers::state::MongoStateImpl;
 use crate::providers::token::JwtTokenImpl;
-use crate::providers::token::RawToken;
 use crate::providers::token::TokenImplError;
 use log::error;
 use log::info;
@@ -104,25 +103,19 @@ impl AstronautCommander {
 impl AstronautCommander {
     pub async fn update_astronaut(
         &self,
-        raw_token: &RawToken,
+        token: AccessTokenPayload,
         id: String,
         input: UpdateAstronautInput,
-    ) -> Result<String, AstronautCommanderError> {
+    ) -> Result<(), AstronautCommanderError> {
         info!("updating astronaut with id {}", id);
 
-        match self.token.validate_token::<AccessTokenPayload>(raw_token) {
-            Ok(token) => {
-                if token.permissions.contains(&Permission::UpdateAnyAstronaut)
-                    || (token.permissions.contains(&Permission::UpdateOwnAstronaut)
-                        && token.astronaut_id == id)
-                {
-                    Ok(())
-                } else {
-                    Err(AstronautCommanderError::Forbidden)
-                }
-            }
-            Err(_) => Err(AstronautCommanderError::Forbidden),
-        }?;
+        let is_allowed = token.permissions.contains(&Permission::UpdateAnyAstronaut)
+            || (token.permissions.contains(&Permission::UpdateOwnAstronaut)
+                && token.astronaut_id == id);
+
+        if !is_allowed {
+            return Err(AstronautCommanderError::Forbidden);
+        };
 
         match self
             .state
@@ -173,6 +166,6 @@ impl AstronautCommander {
 
         info!("astronaut updated with id {}", id);
 
-        Ok(id)
+        Ok(())
     }
 }

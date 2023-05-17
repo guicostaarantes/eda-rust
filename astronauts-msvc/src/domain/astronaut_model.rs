@@ -1,64 +1,27 @@
-use async_graphql::InputObject;
-use async_graphql::Object;
-use async_graphql::ID;
 use chrono::DateTime;
-use chrono::Datelike;
-use chrono::TimeZone;
 use chrono::Utc;
 use serde::Deserialize;
 use serde::Serialize;
 
-// Pure types for domain use
-#[derive(Clone, Default)]
+// Domain types
+#[derive(Clone, Deserialize, Serialize)]
 pub struct Astronaut {
     pub id: String,
     pub name: String,
     pub birth_date: DateTime<Utc>,
 }
 
-// GraphQL fields
-#[Object]
-impl Astronaut {
-    async fn id(&self) -> ID {
-        ID(self.id.clone())
-    }
-
-    async fn name(&self) -> String {
-        self.name.clone()
-    }
-
-    async fn age(&self) -> String {
-        let today = Utc::now();
-        let years = today.years_since(self.birth_date).unwrap();
-        let remaining = Utc
-            .with_ymd_and_hms(
-                self.birth_date.year() + years as i32,
-                self.birth_date.month(),
-                self.birth_date.day(),
-                0,
-                0,
-                0,
-            )
-            .unwrap();
-        let days = today.signed_duration_since(remaining).num_days();
-
-        format!("{} years, {} days", years, days)
-    }
-}
-
-// GraphQL input types
-#[derive(InputObject)]
+// Input types
+#[derive(Deserialize, Serialize)]
 pub struct CreateAstronautInput {
     pub name: String,
-    #[graphql(secret)]
     pub password: String,
     pub birth_date: DateTime<Utc>,
 }
 
-#[derive(InputObject)]
+#[derive(Deserialize, Serialize)]
 pub struct UpdateAstronautInput {
     pub name: Option<String>,
-    #[graphql(secret)]
     pub password: Option<String>,
     pub birth_date: Option<DateTime<Utc>>,
 }
@@ -67,6 +30,12 @@ impl UpdateAstronautInput {
     pub fn is_empty(&self) -> bool {
         self.name == None && self.password == None && self.birth_date == None
     }
+}
+
+// Output types
+#[derive(Deserialize, Serialize)]
+pub struct CreateAstronautOutput {
+    pub id: String,
 }
 
 // Mongo types
@@ -132,16 +101,6 @@ impl From<&AstronautUpdatedEvent> for AstronautUpdatedDocument {
         Self {
             name: input.name.clone(),
             birth_date: input.birth_date.clone(),
-        }
-    }
-}
-
-impl Astronaut {
-    pub fn apply_update_event(&self, event: &AstronautUpdatedEvent) -> Self {
-        Self {
-            id: self.id.clone(),
-            name: event.name.clone().unwrap_or(self.name.clone()),
-            birth_date: event.birth_date.clone().unwrap_or(self.birth_date.clone()),
         }
     }
 }

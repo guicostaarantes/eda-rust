@@ -7,7 +7,6 @@ use crate::providers::json::JsonSerializerImpl;
 use crate::providers::listener::KafkaConsumerImpl;
 use crate::providers::state::MongoStateImpl;
 use crate::providers::token::JwtTokenImpl;
-use crate::providers::token::RawToken;
 use log::error;
 use std::sync::Arc;
 use thiserror::Error;
@@ -53,22 +52,16 @@ impl AstronautQuerier {
 impl AstronautQuerier {
     pub async fn get_astronaut_by_id(
         &self,
-        raw_token: &RawToken,
+        token: AccessTokenPayload,
         id: String,
     ) -> Result<Astronaut, AstronautQuerierError> {
-        match self.token.validate_token::<AccessTokenPayload>(raw_token) {
-            Ok(token) => {
-                if token.permissions.contains(&Permission::GetAnyAstronaut)
-                    || (token.permissions.contains(&Permission::GetOwnAstronaut)
-                        && token.astronaut_id == id)
-                {
-                    Ok(())
-                } else {
-                    Err(AstronautQuerierError::Forbidden)
-                }
-            }
-            Err(_) => Err(AstronautQuerierError::Forbidden),
-        }?;
+        let is_allowed = token.permissions.contains(&Permission::GetAnyAstronaut)
+            || (token.permissions.contains(&Permission::GetOwnAstronaut)
+                && token.astronaut_id == id);
+
+        if !is_allowed {
+            return Err(AstronautQuerierError::Forbidden);
+        };
 
         match self
             .state
@@ -83,29 +76,26 @@ impl AstronautQuerier {
 }
 
 impl AstronautQuerier {
-    pub async fn get_astronaut_by_id_stream(
+    pub async fn astronauts_updated_stream(
         &self,
-        raw_token: &RawToken,
-        id: String,
-    ) -> Result<impl Stream<Item = Astronaut>, AstronautQuerierError> {
+        token: AccessTokenPayload,
+        ttl: u64,
+        ids: Vec<String>,
+    ) -> Result<impl Stream<Item = String>, AstronautQuerierError> {
+        let is_allowed = token.permissions.contains(&Permission::GetAnyAstronaut)
+            || (token.permissions.contains(&Permission::GetOwnAstronaut)
+                && ids.contains(&token.astronaut_id)
+                && ids.len() == 1);
+
+        if !is_allowed {
+            return Err(AstronautQuerierError::Forbidden);
+        };
+
         let (tx, rx) = mpsc::channel(1);
         let tx2 = tx.clone();
         let (kill_tx, kill_rx) = oneshot::channel();
 
-        let mut astronaut = match self.get_astronaut_by_id(raw_token, id.clone()).await {
-            Ok(astro) => match tx.send(astro.clone()).await {
-                Ok(_) => Ok(astro),
-                Err(err) => {
-                    error!("error updating stream for get_astronaut_by_id: {}", err);
-                    Err(AstronautQuerierError::MpscChannelSendError)
-                }
-            },
-            Err(err) => Err(err),
-        }?;
-
-        let mut stream = self
-            .listener
-            .listen_multiple(&["astronaut_updated"], "mongo");
+        let mut stream = self.listener.listen_multiple(&["astronaut_updated"], "sse");
 
         let task = tokio::spawn(async move {
             while let Some(r) = stream.next().await {
@@ -122,19 +112,15 @@ impl AstronautQuerier {
                                 }
                             };
 
-                            if event.id != id {
+                            // just update in case it's a relevant id
+                            if !ids.contains(&event.id) {
                                 continue;
                             };
 
-                            astronaut = astronaut.apply_update_event(&event);
-
-                            match tx.send(astronaut.clone()).await {
+                            match tx.send(event.id).await {
                                 Ok(_) => {}
                                 Err(err) => {
-                                    error!(
-                                        "error updating stream for get_astronaut_by_id: {}",
-                                        err
-                                    );
+                                    error!("error updating astronauts_changed_stream: {}", err);
                                 }
                             };
                         }
@@ -147,16 +133,13 @@ impl AstronautQuerier {
             }
         });
 
-        let task2 = match self.token.get_token_seconds_remaining(raw_token) {
-            Ok(seconds) => Ok(tokio::spawn(async move {
-                tokio::time::sleep(std::time::Duration::from_secs(seconds)).await;
-                match kill_tx.send(()) {
-                    Err(_) => error!("error sending kill signal after token expired"),
-                    _ => {}
-                };
-            })),
-            Err(_) => Err(AstronautQuerierError::Forbidden),
-        }?;
+        let task2 = tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(ttl)).await;
+            match kill_tx.send(()) {
+                Err(_) => error!("error sending kill signal after token expired"),
+                _ => {}
+            };
+        });
 
         tokio::spawn(async move {
             tokio::select! {
