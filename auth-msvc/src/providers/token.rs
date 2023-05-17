@@ -17,9 +17,6 @@ pub struct JwtTokenImpl {
     private_key: RS256KeyPair,
 }
 
-#[derive(Clone)]
-pub struct RawToken(pub String);
-
 #[derive(Debug, Error)]
 pub enum TokenImplError {
     #[error(transparent)]
@@ -63,13 +60,13 @@ impl JwtTokenImpl {
 impl JwtTokenImpl {
     pub fn validate_token<T: Serialize + DeserializeOwned>(
         &self,
-        raw_token: &RawToken,
+        raw_token: &str,
     ) -> Result<T, TokenImplError> {
         self.public_keys
             .iter()
             .find_map(|key| {
                 match key.verify_token::<T>(
-                    &raw_token.0,
+                    raw_token,
                     Some(VerificationOptions {
                         time_tolerance: None,
                         ..VerificationOptions::default()
@@ -86,13 +83,14 @@ impl JwtTokenImpl {
 }
 
 impl JwtTokenImpl {
-    pub fn get_token_seconds_remaining(&self, raw_token: &RawToken) -> Result<u64, TokenImplError> {
+    #[allow(dead_code)]
+    pub fn get_token_seconds_remaining(&self, raw_token: &str) -> Result<u64, TokenImplError> {
         let expires_at = self
             .public_keys
             .iter()
             .find_map(|key| {
                 match key.verify_token::<NoCustomClaims>(
-                    &raw_token.0,
+                    raw_token,
                     Some(VerificationOptions {
                         time_tolerance: None,
                         ..VerificationOptions::default()

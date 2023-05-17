@@ -1,5 +1,3 @@
-use async_graphql::InputObject;
-use async_graphql::SimpleObject;
 use chrono::DateTime;
 use chrono::Utc;
 use serde::Deserialize;
@@ -15,7 +13,13 @@ pub const PASSWORD_GRANT_PERMISSIONS: [Permission; 5] = [
 pub const REFRESH_TOKEN_EXPIRES_IN_SECONDS: u64 = 604800;
 pub const ACCESS_TOKEN_EXPIRES_IN_SECONDS: u64 = 900;
 
-// Pure types for domain use
+// Domain types
+#[derive(Serialize, Deserialize)]
+pub struct TokenPair {
+    pub refresh_token: String,
+    pub access_token: String,
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RefreshTokenPayload {
     #[serde(rename = "fid")]
@@ -36,19 +40,11 @@ pub struct AccessTokenPayload {
     pub permissions: Vec<Permission>,
 }
 
-// GraphQL input types
-#[derive(InputObject)]
+// input types
+#[derive(Serialize, Deserialize)]
 pub struct AstronautCredentialsInput {
     pub name: String,
-    #[graphql(secret)]
     pub password: String,
-}
-
-// GraphQL output types
-#[derive(SimpleObject)]
-pub struct TokenPair {
-    pub refresh_token: String,
-    pub access_token: String,
 }
 
 // Mongo types

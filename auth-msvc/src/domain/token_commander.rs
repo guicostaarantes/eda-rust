@@ -16,7 +16,6 @@ use crate::providers::json::JsonSerializerImpl;
 use crate::providers::random::RandomImpl;
 use crate::providers::state::MongoStateImpl;
 use crate::providers::token::JwtTokenImpl;
-use crate::providers::token::RawToken;
 use crate::providers::token::TokenImplError;
 use log::error;
 use std::sync::Arc;
@@ -141,14 +140,9 @@ impl TokenCommander {
 impl TokenCommander {
     pub async fn refresh_token_pair(
         &self,
-        raw_token: &RawToken,
+        refresh_token_payload: RefreshTokenPayload,
+        refresh_token_signature: String,
     ) -> Result<TokenPair, TokenCommanderError> {
-        let refresh_token_payload =
-            match self.token.validate_token::<RefreshTokenPayload>(raw_token) {
-                Ok(token) => Ok(token),
-                Err(_) => Err(TokenCommanderError::Forbidden),
-            }?;
-
         // TODO: check if signature in state matches the one from the token
         // if it doesn't, it means that the same token is being used across
         // multiple devices, which means an attacker might have stolen the
@@ -168,8 +162,8 @@ impl TokenCommander {
             Ok(Some(token)) => Ok(token),
         }?;
 
-        if rt_in_state.signature != get_token_signature(&raw_token.0) {
-            return match self.invalidate_refresh_token(raw_token).await {
+        if rt_in_state.signature != refresh_token_signature {
+            return match self.invalidate_refresh_token(refresh_token_payload).await {
                 Ok(_) => Err(TokenCommanderError::Forbidden),
                 Err(err) => Err(err),
             };
@@ -224,14 +218,8 @@ impl TokenCommander {
 impl TokenCommander {
     pub async fn invalidate_refresh_token(
         &self,
-        raw_token: &RawToken,
+        refresh_token_payload: RefreshTokenPayload,
     ) -> Result<(), TokenCommanderError> {
-        let refresh_token_payload =
-            match self.token.validate_token::<RefreshTokenPayload>(raw_token) {
-                Ok(token) => Ok(token),
-                Err(_) => Err(TokenCommanderError::Forbidden),
-            }?;
-
         let refresh_token_event_payload = RefreshTokenRevokedEvent {
             id: refresh_token_payload.family_id.clone(),
         };

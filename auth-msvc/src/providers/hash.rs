@@ -23,6 +23,7 @@ impl From<Argon2Error> for HashImplError {
 }
 
 impl HashImpl {
+    #[allow(dead_code)]
     pub fn hash(password: &str) -> Result<String, HashImplError> {
         let salt = SaltString::generate(&mut OsRng);
         let hash = Argon2::default().hash_password(password.as_bytes(), &salt)?;
