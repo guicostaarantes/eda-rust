@@ -11,7 +11,6 @@ use crate::providers::json::JsonSerializerImpl;
 use crate::providers::random::RandomImpl;
 use crate::providers::state::MongoStateImpl;
 use crate::providers::token::JwtTokenImpl;
-use crate::providers::token::RawToken;
 use crate::providers::token::TokenImplError;
 use log::error;
 use log::info;
@@ -62,26 +61,18 @@ impl MissionCommander {
 impl MissionCommander {
     pub async fn create_mission(
         &self,
-        raw_token: &RawToken,
+        token: AccessTokenPayload,
         input: CreateMissionInput,
     ) -> Result<String, MissionCommanderError> {
+        let is_allowed = token.permissions.contains(&Permission::CreateMission);
+
+        if !is_allowed {
+            return Err(MissionCommanderError::Forbidden);
+        }
+
         let id = RandomImpl::uuid();
 
         info!("creating mission with id {}", id);
-
-        let astronaut_id = match self.token.validate_token::<AccessTokenPayload>(raw_token) {
-            Ok(token) => {
-                if token.permissions.contains(&Permission::CreateMission) {
-                    Ok(token.astronaut_id)
-                } else {
-                    Err(MissionCommanderError::Forbidden)
-                }
-            }
-            Err(err) => {
-                info!("token is invalid {}", err);
-                Err(MissionCommanderError::Forbidden)
-            }
-        }?;
 
         match self
             .state
@@ -104,7 +95,7 @@ impl MissionCommander {
 
         let event = CrewMemberAddedEvent {
             mission_id: id.clone(),
-            astronaut_id,
+            astronaut_id: token.astronaut_id,
         };
 
         let payload = JsonSerializerImpl::serialize(&event)?;
@@ -121,16 +112,11 @@ impl MissionCommander {
 impl MissionCommander {
     pub async fn update_mission(
         &self,
-        raw_token: &RawToken,
+        token: AccessTokenPayload,
         id: String,
         input: UpdateMissionInput,
-    ) -> Result<String, MissionCommanderError> {
+    ) -> Result<(), MissionCommanderError> {
         info!("updating mission with id {}", id);
-
-        let token = match self.token.validate_token::<AccessTokenPayload>(raw_token) {
-            Ok(token) => Ok(token),
-            Err(_) => Err(MissionCommanderError::Forbidden),
-        }?;
 
         let mission = match self
             .state
@@ -189,6 +175,6 @@ impl MissionCommander {
 
         info!("mission updated with id {}", id);
 
-        Ok(id)
+        Ok(())
     }
 }

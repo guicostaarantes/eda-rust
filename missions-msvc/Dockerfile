@@ -1,4 +1,4 @@
-FROM rust:1.67 AS build
+FROM rust:1.69 AS build
 WORKDIR /app
 COPY ./Cargo.lock ./Cargo.lock 
 COPY ./Cargo.toml ./Cargo.toml
@@ -9,8 +9,5 @@ COPY ./src ./src
 RUN cargo build --release
 
 FROM debian:bullseye-slim AS final
-RUN apt update
-RUN apt install -y curl
-COPY --from=build /app/target/release/astronauts-msvc .
-HEALTHCHECK CMD curl http://localhost:8000 --data-raw '{"query":"{__typename}"}'
-CMD ["./astronauts-msvc"]
+COPY --from=build /app/target/release/missions-msvc .
+CMD ["./missions-msvc"]

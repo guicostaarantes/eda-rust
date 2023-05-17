@@ -1,4 +1,4 @@
-use async_graphql::futures_util::future::join_all;
+use futures_util::future::join_all;
 use log::error;
 use rdkafka::config::ClientConfig;
 use rdkafka::consumer::stream_consumer::StreamConsumer;

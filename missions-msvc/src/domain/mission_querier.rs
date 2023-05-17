@@ -11,7 +11,6 @@ use crate::providers::json::JsonSerializerImpl;
 use crate::providers::listener::KafkaConsumerImpl;
 use crate::providers::state::MongoStateImpl;
 use crate::providers::token::JwtTokenImpl;
-use crate::providers::token::RawToken;
 use log::error;
 use std::sync::Arc;
 use thiserror::Error;
@@ -59,14 +58,9 @@ impl MissionQuerier {
 impl MissionQuerier {
     pub async fn get_mission_by_id(
         &self,
-        raw_token: &RawToken,
+        token: AccessTokenPayload,
         id: String,
     ) -> Result<Mission, MissionQuerierError> {
-        let token = match self.token.validate_token::<AccessTokenPayload>(raw_token) {
-            Ok(token) => Ok(token),
-            Err(_) => Err(MissionQuerierError::Forbidden),
-        }?;
-
         let mission_doc = match self
             .state
             .find_one_by_id::<MissionDocument>("missions", &id)
@@ -103,159 +97,11 @@ impl MissionQuerier {
 }
 
 impl MissionQuerier {
-    pub async fn get_mission_by_id_stream(
-        &self,
-        raw_token: &RawToken,
-        id: String,
-    ) -> Result<impl Stream<Item = Mission>, MissionQuerierError> {
-        let (tx, rx) = mpsc::channel(1);
-        let tx2 = tx.clone();
-        let (kill_tx, kill_rx) = oneshot::channel();
-
-        let mut mission = match self.get_mission_by_id(raw_token, id.clone()).await {
-            Ok(astro) => match tx.send(astro.clone()).await {
-                Ok(_) => Ok(astro),
-                Err(err) => {
-                    error!("error updating stream for get_mission_by_id: {}", err);
-                    Err(MissionQuerierError::MpscChannelSendError)
-                }
-            },
-            Err(err) => Err(err),
-        }?;
-
-        let mut stream = self.listener.listen_multiple(
-            &[
-                "mission_updated",
-                "crew_member_added",
-                "crew_member_removed",
-            ],
-            "mongo",
-        );
-
-        let task = tokio::spawn(async move {
-            while let Some(r) = stream.next().await {
-                match r {
-                    Ok(re) => match re.topic_index {
-                        0 => {
-                            let event = match JsonSerializerImpl::deserialize::<MissionUpdatedEvent>(
-                                &re.message.get_payload(),
-                            ) {
-                                Ok(payload) => payload,
-                                Err(err) => {
-                                    error!("error deserializing payload: {}", err);
-                                    continue;
-                                }
-                            };
-
-                            if event.id != id {
-                                continue;
-                            };
-
-                            mission = mission.apply_mission_updated_event(&event);
-
-                            match tx.send(mission.clone()).await {
-                                Ok(_) => {}
-                                Err(err) => {
-                                    error!("error updating stream for get_mission_by_id: {}", err);
-                                }
-                            };
-                        }
-                        1 => {
-                            let event = match JsonSerializerImpl::deserialize::<CrewMemberAddedEvent>(
-                                &re.message.get_payload(),
-                            ) {
-                                Ok(payload) => payload,
-                                Err(err) => {
-                                    error!("error deserializing payload: {}", err);
-                                    continue;
-                                }
-                            };
-
-                            if event.mission_id != id {
-                                continue;
-                            };
-
-                            mission = mission.apply_crew_member_added_event(&event);
-
-                            match tx.send(mission.clone()).await {
-                                Ok(_) => {}
-                                Err(err) => {
-                                    error!("error updating stream for get_mission_by_id: {}", err);
-                                }
-                            };
-                        }
-                        2 => {
-                            let event =
-                                match JsonSerializerImpl::deserialize::<CrewMemberRemovedEvent>(
-                                    &re.message.get_payload(),
-                                ) {
-                                    Ok(payload) => payload,
-                                    Err(err) => {
-                                        error!("error deserializing payload: {}", err);
-                                        continue;
-                                    }
-                                };
-
-                            if event.mission_id != id {
-                                continue;
-                            };
-
-                            mission = mission.apply_crew_member_removed_event(&event);
-
-                            match tx.send(mission.clone()).await {
-                                Ok(_) => {}
-                                Err(err) => {
-                                    error!("error updating stream for get_mission_by_id: {}", err);
-                                }
-                            };
-                        }
-                        _ => {
-                            error!("unsupported case");
-                        }
-                    },
-                    Err(err) => error!("error in mpsc stream: {}", err),
-                }
-            }
-        });
-
-        let task2 = match self.token.get_token_seconds_remaining(raw_token) {
-            Ok(seconds) => Ok(tokio::spawn(async move {
-                tokio::time::sleep(std::time::Duration::from_secs(seconds)).await;
-                match kill_tx.send(()) {
-                    Err(_) => error!("error sending kill signal after token expired"),
-                    _ => {}
-                };
-            })),
-            Err(_) => Err(MissionQuerierError::Forbidden),
-        }?;
-
-        tokio::spawn(async move {
-            tokio::select! {
-                _ = tx2.closed() => {
-                    task.abort();
-                    task2.abort();
-                }
-                _ = kill_rx => {
-                    task.abort();
-                }
-            }
-        });
-
-        Ok(ReceiverStream::new(rx))
-    }
-}
-
-impl MissionQuerier {
     pub async fn get_astronaut_by_id(
         &self,
-        raw_token: &RawToken,
+        token: AccessTokenPayload,
         id: String,
     ) -> Result<Astronaut, MissionQuerierError> {
-        let token = match self.token.validate_token::<AccessTokenPayload>(raw_token) {
-            Ok(token) => Ok(token),
-            Err(_) => Err(MissionQuerierError::Forbidden),
-        }?;
-
         let astronaut_doc = match self
             .state
             .find_one_by_id::<AstronautDocument>("astronauts", &id)
@@ -279,5 +125,161 @@ impl MissionQuerier {
         let astronaut = Astronaut::from(&astronaut_doc);
 
         Ok(astronaut)
+    }
+}
+
+impl MissionQuerier {
+    pub async fn missions_or_crew_updated_stream(
+        &self,
+        token: AccessTokenPayload,
+        ttl: u64,
+        ids: Vec<String>,
+    ) -> Result<impl Stream<Item = String>, MissionQuerierError> {
+        let is_allowed = token.permissions.contains(&Permission::GetAnyMission)
+            || (token
+                .permissions
+                .contains(&Permission::GetMissionIfCrewMember)
+                && {
+                    match self
+                        .state
+                        .find_one_by_id::<AstronautDocument>("astronauts", &token.astronaut_id)
+                        .await
+                    {
+                        Err(err) => Err(MissionQuerierError::StateImplError(err)),
+                        Ok(None) => Err(MissionQuerierError::AstronautNotFound),
+                        Ok(Some(a)) => Ok(ids.iter().all(|item| a.participant_of.contains(item))),
+                    }
+                }?);
+
+        if !is_allowed {
+            return Err(MissionQuerierError::Forbidden);
+        };
+
+        let (tx, rx) = mpsc::channel(1);
+        let tx2 = tx.clone();
+        let (kill_tx, kill_rx) = oneshot::channel();
+
+        let mut stream = self.listener.listen_multiple(
+            &[
+                "mission_updated",
+                "crew_member_added",
+                "crew_member_removed",
+            ],
+            "sse",
+        );
+
+        let task = tokio::spawn(async move {
+            while let Some(r) = stream.next().await {
+                match r {
+                    Ok(re) => match re.topic_index {
+                        0 => {
+                            let event = match JsonSerializerImpl::deserialize::<MissionUpdatedEvent>(
+                                &re.message.get_payload(),
+                            ) {
+                                Ok(payload) => payload,
+                                Err(err) => {
+                                    error!("error deserializing payload: {}", err);
+                                    continue;
+                                }
+                            };
+
+                            // just update in case it's a relevant id
+                            if !ids.contains(&event.id) {
+                                continue;
+                            };
+
+                            match tx.send(event.id).await {
+                                Ok(_) => {}
+                                Err(err) => {
+                                    error!(
+                                        "error updating missions_or_crew_updated_stream: {}",
+                                        err
+                                    );
+                                }
+                            };
+                        }
+                        1 => {
+                            let event = match JsonSerializerImpl::deserialize::<CrewMemberAddedEvent>(
+                                &re.message.get_payload(),
+                            ) {
+                                Ok(payload) => payload,
+                                Err(err) => {
+                                    error!("error deserializing payload: {}", err);
+                                    continue;
+                                }
+                            };
+
+                            // just update in case it's a relevant id
+                            if !ids.contains(&event.mission_id) {
+                                continue;
+                            };
+
+                            match tx.send(event.mission_id).await {
+                                Ok(_) => {}
+                                Err(err) => {
+                                    error!(
+                                        "error updating missions_or_crew_updated_stream: {}",
+                                        err
+                                    );
+                                }
+                            };
+                        }
+                        2 => {
+                            let event =
+                                match JsonSerializerImpl::deserialize::<CrewMemberRemovedEvent>(
+                                    &re.message.get_payload(),
+                                ) {
+                                    Ok(payload) => payload,
+                                    Err(err) => {
+                                        error!("error deserializing payload: {}", err);
+                                        continue;
+                                    }
+                                };
+
+                            // just update in case it's a relevant id
+                            if !ids.contains(&event.mission_id) {
+                                continue;
+                            };
+
+                            match tx.send(event.mission_id).await {
+                                Ok(_) => {}
+                                Err(err) => {
+                                    error!(
+                                        "error updating missions_or_crew_updated_stream: {}",
+                                        err
+                                    );
+                                }
+                            };
+                        }
+                        _ => {
+                            error!("unsupported case");
+                        }
+                    },
+                    Err(err) => error!("error in mpsc stream: {}", err),
+                }
+            }
+        });
+
+        let task2 = tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_secs(ttl)).await;
+            match kill_tx.send(()) {
+                Err(_) => error!("error sending kill signal after token expired"),
+                _ => {}
+            };
+        });
+
+        tokio::spawn(async move {
+            tokio::select! {
+                _ = tx2.closed() => {
+                    task.abort();
+                    task2.abort();
+                }
+                _ = kill_rx => {
+                    task.abort();
+                }
+            }
+        });
+
+        Ok(ReceiverStream::new(rx))
     }
 }
