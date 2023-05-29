@@ -33,7 +33,7 @@ impl AstronautSynchronizer {
     pub async fn sync_events_to_state(&self) {
         let mut stream = self
             .listener
-            .listen_multiple(&["astronaut_created", "astronaut_updated"], "mongo");
+            .listen(&["astronaut_created", "astronaut_updated"], "mongo");
 
         while let Some(r) = stream.next().await {
             match r {

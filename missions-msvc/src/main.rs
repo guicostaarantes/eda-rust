@@ -43,12 +43,10 @@ async fn main() {
     let mission_commander = Arc::new(MissionCommander::new(
         emitter_impl.clone(),
         state_impl.clone(),
-        token_impl.clone(),
     ));
     let mission_querier = Arc::new(MissionQuerier::new(
         listener_impl.clone(),
         state_impl.clone(),
-        token_impl.clone(),
     ));
 
     let mission_synchronizer = MissionSynchronizer::new(listener_impl.clone(), state_impl.clone());

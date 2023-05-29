@@ -4,11 +4,11 @@ use serde::Deserialize;
 use serde::Serialize;
 
 pub const PASSWORD_GRANT_PERMISSIONS: [Permission; 5] = [
-    Permission::GetAnyAstronaut,
-    Permission::UpdateOwnAstronaut,
+    Permission::GetAstronaut,
+    Permission::UpdateAstronaut,
     Permission::CreateMission,
-    Permission::UpdateOwnMission,
-    Permission::GetAnyMission,
+    Permission::UpdateMission,
+    Permission::GetMission,
 ];
 pub const REFRESH_TOKEN_EXPIRES_IN_SECONDS: u64 = 604800;
 pub const ACCESS_TOKEN_EXPIRES_IN_SECONDS: u64 = 900;
@@ -90,13 +90,9 @@ impl From<&RefreshTokenCreatedEvent> for RefreshTokenDocument {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Permission {
-    GetAnyAstronaut,
-    GetOwnAstronaut,
-    UpdateAnyAstronaut,
-    UpdateOwnAstronaut,
+    GetAstronaut,
+    UpdateAstronaut,
     CreateMission,
-    UpdateAnyMission,
-    UpdateOwnMission,
-    GetAnyMission,
-    GetOwnMission,
+    UpdateMission,
+    GetMission,
 }

@@ -1,3 +1,4 @@
+use futures_util::TryStreamExt;
 use mongodb::bson::doc;
 use mongodb::error::Result;
 use mongodb::Client;
@@ -52,6 +53,39 @@ impl MongoStateImpl {
             .await
     }
 
+    pub async fn find_one_by_two_fields<T: DeserializeOwned + Unpin + Send + Sync>(
+        &self,
+        collection_name: &str,
+        field_name_1: &str,
+        field_value_1: &str,
+        field_name_2: &str,
+        field_value_2: &str,
+    ) -> Result<Option<T>> {
+        self.client
+            .database(&self.db_name)
+            .collection::<T>(collection_name)
+            .find_one(
+                doc! {field_name_1: field_value_1, field_name_2: field_value_2},
+                None,
+            )
+            .await
+    }
+
+    pub async fn find_all_by_field<T: DeserializeOwned + Unpin + Send + Sync>(
+        &self,
+        collection_name: &str,
+        field_name: &str,
+        field_value: &str,
+    ) -> Result<Vec<T>> {
+        self.client
+            .database(&self.db_name)
+            .collection::<T>(collection_name)
+            .find(doc! {field_name: field_value}, None)
+            .await?
+            .try_collect()
+            .await
+    }
+
     pub async fn insert_one<T: Serialize + Clone>(
         &self,
         collection_name: &str,
@@ -78,44 +112,6 @@ impl MongoStateImpl {
             .update_one(
                 doc! {field_name: field_value},
                 doc! {"$set": mongodb::bson::to_document(&document).unwrap()},
-                None,
-            )
-            .await?;
-        Ok(document.clone())
-    }
-
-    pub async fn update_one_push_to_field<T: Serialize + Clone>(
-        &self,
-        collection_name: &str,
-        field_name: &str,
-        field_value: &str,
-        document: &T,
-    ) -> Result<T> {
-        self.client
-            .database(&self.db_name)
-            .collection::<T>(collection_name)
-            .update_one(
-                doc! {field_name: field_value},
-                doc! {"$push": mongodb::bson::to_document(&document).unwrap()},
-                None,
-            )
-            .await?;
-        Ok(document.clone())
-    }
-
-    pub async fn update_one_pull_from_field<T: Serialize + Clone>(
-        &self,
-        collection_name: &str,
-        field_name: &str,
-        field_value: &str,
-        document: &T,
-    ) -> Result<T> {
-        self.client
-            .database(&self.db_name)
-            .collection::<T>(collection_name)
-            .update_one(
-                doc! {field_name: field_value},
-                doc! {"$pull": mongodb::bson::to_document(&document).unwrap()},
                 None,
             )
             .await?;

@@ -1,7 +1,6 @@
-use crate::domain::mission_model::Astronaut;
-use crate::domain::mission_model::AstronautDocument;
-use crate::domain::mission_model::CrewMemberAddedEvent;
-use crate::domain::mission_model::CrewMemberRemovedEvent;
+use crate::domain::mission_model::AstronautCrewInfo;
+use crate::domain::mission_model::CrewDocument;
+use crate::domain::mission_model::CrewUpdatedEvent;
 use crate::domain::mission_model::Mission;
 use crate::domain::mission_model::MissionDocument;
 use crate::domain::mission_model::MissionUpdatedEvent;
@@ -10,7 +9,6 @@ use crate::domain::token_model::Permission;
 use crate::providers::json::JsonSerializerImpl;
 use crate::providers::listener::KafkaConsumerImpl;
 use crate::providers::state::MongoStateImpl;
-use crate::providers::token::JwtTokenImpl;
 use log::error;
 use std::sync::Arc;
 use thiserror::Error;
@@ -24,12 +22,8 @@ use tokio_stream::StreamExt;
 pub enum MissionQuerierError {
     #[error(transparent)]
     StateImplError(#[from] mongodb::error::Error),
-    #[error("tokio mpsc send error")]
-    MpscChannelSendError,
     #[error("mission not found")]
     MissionNotFound,
-    #[error("astronaut not found")]
-    AstronautNotFound,
     #[error("forbidden")]
     Forbidden,
 }
@@ -38,20 +32,11 @@ pub enum MissionQuerierError {
 pub struct MissionQuerier {
     listener: Arc<KafkaConsumerImpl>,
     state: Arc<MongoStateImpl>,
-    token: Arc<JwtTokenImpl>,
 }
 
 impl MissionQuerier {
-    pub fn new(
-        listener: Arc<KafkaConsumerImpl>,
-        state: Arc<MongoStateImpl>,
-        token: Arc<JwtTokenImpl>,
-    ) -> Self {
-        Self {
-            listener,
-            state,
-            token,
-        }
+    pub fn new(listener: Arc<KafkaConsumerImpl>, state: Arc<MongoStateImpl>) -> Self {
+        Self { listener, state }
     }
 }
 
@@ -61,6 +46,12 @@ impl MissionQuerier {
         token: AccessTokenPayload,
         id: String,
     ) -> Result<Mission, MissionQuerierError> {
+        let is_allowed = token.permissions.contains(&Permission::GetMission);
+
+        if !is_allowed {
+            return Err(MissionQuerierError::Forbidden);
+        };
+
         let mission_doc = match self
             .state
             .find_one_by_id::<MissionDocument>("missions", &id)
@@ -71,25 +62,6 @@ impl MissionQuerier {
             Ok(Some(a)) => Ok(a),
         }?;
 
-        if token.permissions.contains(&Permission::GetAnyMission) {
-            Ok(())
-        } else if token
-            .permissions
-            .contains(&Permission::GetMissionIfCrewMember)
-        {
-            if mission_doc
-                .crew
-                .iter()
-                .any(|ast_id| ast_id == &token.astronaut_id)
-            {
-                Ok(())
-            } else {
-                Err(MissionQuerierError::Forbidden)
-            }
-        } else {
-            Err(MissionQuerierError::Forbidden)
-        }?;
-
         let mission = Mission::from(&mission_doc);
 
         Ok(mission)
@@ -97,34 +69,23 @@ impl MissionQuerier {
 }
 
 impl MissionQuerier {
-    pub async fn get_astronaut_by_id(
+    pub async fn get_astronaut_crew_info(
         &self,
         token: AccessTokenPayload,
         id: String,
-    ) -> Result<Astronaut, MissionQuerierError> {
-        let astronaut_doc = match self
+    ) -> Result<AstronautCrewInfo, MissionQuerierError> {
+        let is_allowed = token.permissions.contains(&Permission::GetAstronaut);
+
+        if !is_allowed {
+            return Err(MissionQuerierError::Forbidden);
+        };
+
+        let crews = self
             .state
-            .find_one_by_id::<AstronautDocument>("astronauts", &id)
-            .await
-        {
-            Err(err) => Err(MissionQuerierError::StateImplError(err)),
-            Ok(None) => Err(MissionQuerierError::AstronautNotFound),
-            Ok(Some(a)) => Ok(a),
-        }?;
+            .find_all_by_field::<CrewDocument>("crew", "astronaut_id", &id)
+            .await?;
 
-        if token.permissions.contains(&Permission::GetAnyAstronaut)
-            || token
-                .permissions
-                .contains(&Permission::GetAstronautIfCoCrew)
-        {
-            Ok(())
-        } else {
-            Err(MissionQuerierError::Forbidden)
-        }?;
-
-        let astronaut = Astronaut::from(&astronaut_doc);
-
-        Ok(astronaut)
+        Ok(AstronautCrewInfo::from(&crews))
     }
 }
 
@@ -135,21 +96,7 @@ impl MissionQuerier {
         ttl: u64,
         ids: Vec<String>,
     ) -> Result<impl Stream<Item = String>, MissionQuerierError> {
-        let is_allowed = token.permissions.contains(&Permission::GetAnyMission)
-            || (token
-                .permissions
-                .contains(&Permission::GetMissionIfCrewMember)
-                && {
-                    match self
-                        .state
-                        .find_one_by_id::<AstronautDocument>("astronauts", &token.astronaut_id)
-                        .await
-                    {
-                        Err(err) => Err(MissionQuerierError::StateImplError(err)),
-                        Ok(None) => Err(MissionQuerierError::AstronautNotFound),
-                        Ok(Some(a)) => Ok(ids.iter().all(|item| a.participant_of.contains(item))),
-                    }
-                }?);
+        let is_allowed = token.permissions.contains(&Permission::GetMission);
 
         if !is_allowed {
             return Err(MissionQuerierError::Forbidden);
@@ -159,14 +106,9 @@ impl MissionQuerier {
         let tx2 = tx.clone();
         let (kill_tx, kill_rx) = oneshot::channel();
 
-        let mut stream = self.listener.listen_multiple(
-            &[
-                "mission_updated",
-                "crew_member_added",
-                "crew_member_removed",
-            ],
-            "sse",
-        );
+        let mut stream = self
+            .listener
+            .listen(&["mission_updated", "crew_member_updated"], "sse");
 
         let task = tokio::spawn(async move {
             while let Some(r) = stream.next().await {
@@ -199,7 +141,7 @@ impl MissionQuerier {
                             };
                         }
                         1 => {
-                            let event = match JsonSerializerImpl::deserialize::<CrewMemberAddedEvent>(
+                            let event = match JsonSerializerImpl::deserialize::<CrewUpdatedEvent>(
                                 &re.message.get_payload(),
                             ) {
                                 Ok(payload) => payload,
@@ -208,33 +150,6 @@ impl MissionQuerier {
                                     continue;
                                 }
                             };
-
-                            // just update in case it's a relevant id
-                            if !ids.contains(&event.mission_id) {
-                                continue;
-                            };
-
-                            match tx.send(event.mission_id).await {
-                                Ok(_) => {}
-                                Err(err) => {
-                                    error!(
-                                        "error updating missions_or_crew_updated_stream: {}",
-                                        err
-                                    );
-                                }
-                            };
-                        }
-                        2 => {
-                            let event =
-                                match JsonSerializerImpl::deserialize::<CrewMemberRemovedEvent>(
-                                    &re.message.get_payload(),
-                                ) {
-                                    Ok(payload) => payload,
-                                    Err(err) => {
-                                        error!("error deserializing payload: {}", err);
-                                        continue;
-                                    }
-                                };
 
                             // just update in case it's a relevant id
                             if !ids.contains(&event.mission_id) {

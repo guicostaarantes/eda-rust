@@ -6,7 +6,6 @@ use crate::domain::token_model::Permission;
 use crate::providers::json::JsonSerializerImpl;
 use crate::providers::listener::KafkaConsumerImpl;
 use crate::providers::state::MongoStateImpl;
-use crate::providers::token::JwtTokenImpl;
 use log::error;
 use std::sync::Arc;
 use thiserror::Error;
@@ -21,8 +20,6 @@ pub enum AstronautQuerierError {
     #[error(transparent)]
     StateImplError(#[from] mongodb::error::Error),
     #[error("tokio mpsc send error")]
-    MpscChannelSendError,
-    #[error("astronaut not found")]
     AstronautNotFound,
     #[error("forbidden")]
     Forbidden,
@@ -32,20 +29,11 @@ pub enum AstronautQuerierError {
 pub struct AstronautQuerier {
     listener: Arc<KafkaConsumerImpl>,
     state: Arc<MongoStateImpl>,
-    token: Arc<JwtTokenImpl>,
 }
 
 impl AstronautQuerier {
-    pub fn new(
-        listener: Arc<KafkaConsumerImpl>,
-        state: Arc<MongoStateImpl>,
-        token: Arc<JwtTokenImpl>,
-    ) -> Self {
-        Self {
-            listener,
-            state,
-            token,
-        }
+    pub fn new(listener: Arc<KafkaConsumerImpl>, state: Arc<MongoStateImpl>) -> Self {
+        Self { listener, state }
     }
 }
 
@@ -55,9 +43,7 @@ impl AstronautQuerier {
         token: AccessTokenPayload,
         id: String,
     ) -> Result<Astronaut, AstronautQuerierError> {
-        let is_allowed = token.permissions.contains(&Permission::GetAnyAstronaut)
-            || (token.permissions.contains(&Permission::GetOwnAstronaut)
-                && token.astronaut_id == id);
+        let is_allowed = token.permissions.contains(&Permission::GetAstronaut);
 
         if !is_allowed {
             return Err(AstronautQuerierError::Forbidden);
@@ -82,10 +68,7 @@ impl AstronautQuerier {
         ttl: u64,
         ids: Vec<String>,
     ) -> Result<impl Stream<Item = String>, AstronautQuerierError> {
-        let is_allowed = token.permissions.contains(&Permission::GetAnyAstronaut)
-            || (token.permissions.contains(&Permission::GetOwnAstronaut)
-                && ids.contains(&token.astronaut_id)
-                && ids.len() == 1);
+        let is_allowed = token.permissions.contains(&Permission::GetAstronaut);
 
         if !is_allowed {
             return Err(AstronautQuerierError::Forbidden);
@@ -95,7 +78,7 @@ impl AstronautQuerier {
         let tx2 = tx.clone();
         let (kill_tx, kill_rx) = oneshot::channel();
 
-        let mut stream = self.listener.listen_multiple(&["astronaut_updated"], "sse");
+        let mut stream = self.listener.listen(&["astronaut_updated"], "sse");
 
         let task = tokio::spawn(async move {
             while let Some(r) = stream.next().await {

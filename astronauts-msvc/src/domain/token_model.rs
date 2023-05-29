@@ -16,10 +16,8 @@ pub struct AccessTokenPayload {
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Permission {
-    GetAnyAstronaut,
-    GetOwnAstronaut,
-    UpdateAnyAstronaut,
-    UpdateOwnAstronaut,
+    GetAstronaut,
+    UpdateAstronaut,
     #[serde(other)]
     Other,
 }

@@ -43,12 +43,10 @@ async fn main() {
     let astronaut_commander = Arc::new(AstronautCommander::new(
         emitter_impl.clone(),
         state_impl.clone(),
-        token_impl.clone(),
     ));
     let astronaut_querier = Arc::new(AstronautQuerier::new(
         listener_impl.clone(),
         state_impl.clone(),
-        token_impl.clone(),
     ));
 
     let astronaut_synchronizer =

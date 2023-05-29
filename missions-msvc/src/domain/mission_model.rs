@@ -9,13 +9,13 @@ pub struct Mission {
     pub id: String,
     pub name: String,
     pub start_date: DateTime<Utc>,
-    pub crew_ids: Vec<String>,
 }
 
-#[derive(Clone, Default)]
-pub struct Astronaut {
-    pub id: String,
-    pub participant_of_ids: Vec<String>,
+#[derive(Clone, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum MissionRole {
+    Leader,
+    Member,
 }
 
 // Input types
@@ -38,13 +38,24 @@ impl UpdateMissionInput {
 }
 
 #[derive(Deserialize, Serialize)]
-pub struct AddCrewMemberToMissionInput {
+pub struct AddCrewInput {
+    #[serde(default)]
     pub mission_id: String,
     pub astronaut_id: String,
+    pub roles: Vec<MissionRole>,
 }
 
 #[derive(Deserialize, Serialize)]
-pub struct RemoveCrewMemberFromMissionInput {
+pub struct UpdateCrewInput {
+    #[serde(default)]
+    pub mission_id: String,
+    pub astronaut_id: String,
+    pub roles: Vec<MissionRole>,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct RemoveCrewInput {
+    #[serde(default)]
     pub mission_id: String,
     pub astronaut_id: String,
 }
@@ -55,6 +66,15 @@ pub struct CreateMissionOutput {
     pub id: String,
 }
 
+#[derive(Deserialize, Serialize)]
+pub struct AstronautCrewInfoItem {
+    pub mission_id: String,
+    pub roles: Vec<MissionRole>,
+}
+
+#[derive(Default, Deserialize, Serialize)]
+pub struct AstronautCrewInfo(pub Vec<AstronautCrewInfoItem>);
+
 // Mongo types
 #[derive(Clone, Deserialize, Serialize)]
 pub struct MissionDocument {
@@ -62,14 +82,6 @@ pub struct MissionDocument {
     pub id: String,
     pub name: String,
     pub start_date: DateTime<Utc>,
-    pub crew: Vec<String>,
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-pub struct AstronautDocument {
-    #[serde(rename = "_id")]
-    pub id: String,
-    pub participant_of: Vec<String>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -81,19 +93,23 @@ pub struct MissionUpdateDocument {
 }
 
 #[derive(Clone, Deserialize, Serialize)]
-pub struct CrewMemberUpdateDocument {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub crew: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub participant_of: Option<String>,
+pub struct CrewDocument {
+    #[serde(rename = "_id")]
+    pub id: String,
+    pub mission_id: String,
+    pub astronaut_id: String,
+    pub roles: Vec<MissionRole>,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
-pub struct CrewMemberRemoveDocument {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub crew: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub participant_of: Option<String>,
+pub struct CrewUpdateDocument {
+    pub roles: Vec<MissionRole>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+pub struct CrewRemoveDocument {
+    pub mission_id: String,
+    pub astronaut_id: String,
 }
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -120,20 +136,10 @@ pub struct MissionUpdatedEvent {
 }
 
 #[derive(Clone, Deserialize, Serialize)]
-pub struct CrewMemberAddedEvent {
+pub struct CrewUpdatedEvent {
     pub mission_id: String,
     pub astronaut_id: String,
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-pub struct CrewMemberRemovedEvent {
-    pub mission_id: String,
-    pub astronaut_id: String,
-}
-
-#[derive(Clone, Deserialize, Serialize)]
-pub struct AstronautCreatedEvent {
-    pub id: String,
+    pub roles: Vec<MissionRole>,
 }
 
 // Transformation between types
@@ -143,16 +149,6 @@ impl From<&MissionDocument> for Mission {
             id: input.id.clone(),
             name: input.name.clone(),
             start_date: input.start_date.clone(),
-            crew_ids: input.crew.clone(),
-        }
-    }
-}
-
-impl From<&AstronautDocument> for Astronaut {
-    fn from(input: &AstronautDocument) -> Self {
-        Self {
-            id: input.id.clone(),
-            participant_of_ids: input.participant_of.clone(),
         }
     }
 }
@@ -163,16 +159,6 @@ impl From<&MissionCreatedEvent> for MissionDocument {
             id: input.id.clone(),
             name: input.name.clone(),
             start_date: input.start_date.clone(),
-            crew: Vec::new(),
-        }
-    }
-}
-
-impl From<&AstronautCreatedEvent> for AstronautDocument {
-    fn from(input: &AstronautCreatedEvent) -> Self {
-        Self {
-            id: input.id.clone(),
-            participant_of: Vec::new(),
         }
     }
 }
@@ -183,5 +169,19 @@ impl From<&MissionUpdatedEvent> for MissionUpdateDocument {
             name: input.name.clone(),
             start_date: input.start_date.clone(),
         }
+    }
+}
+
+impl From<&Vec<CrewDocument>> for AstronautCrewInfo {
+    fn from(input: &Vec<CrewDocument>) -> Self {
+        input
+            .iter()
+            .fold(AstronautCrewInfo::default(), |mut acc, val| {
+                acc.0.push(AstronautCrewInfoItem {
+                    mission_id: val.mission_id.clone(),
+                    roles: val.roles.clone(),
+                });
+                acc
+            })
     }
 }

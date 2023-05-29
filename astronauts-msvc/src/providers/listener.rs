@@ -144,17 +144,6 @@ impl KafkaConsumerImpl {
     }
 }
 
-impl KafkaConsumerImpl {
-    pub fn listen(
-        &self,
-        topic: &str,
-        description: &str,
-    ) -> impl Stream<Item = Result<KafkaMessage, BroadcastStreamRecvError>> {
-        let receiver = self.get_receiver(topic.to_string(), description.to_string());
-        BroadcastStream::new(receiver)
-    }
-}
-
 enum StreamState {
     HasMsg(KafkaMessage),
     NoNewMsg,
@@ -173,7 +162,7 @@ pub struct MultipleStreamMessage {
 }
 
 impl KafkaConsumerImpl {
-    pub fn listen_multiple(
+    pub fn listen(
         &self,
         topics: &[&str],
         description: &str,
@@ -193,7 +182,7 @@ impl KafkaConsumerImpl {
 
         // TODO: fetch the state of each consumer and only loop below when all are stable
         // allowing the consumers time to become stable
-        let mut timeout_ms = 10000;
+        let mut timeout_ms = 0;
 
         tokio::spawn(async move {
             loop {
@@ -241,10 +230,10 @@ impl KafkaConsumerImpl {
 
                 match &chosen.state {
                     StreamState::NoNewMsg => {
-                        timeout_ms = 1000;
+                        timeout_ms = 0;
                     }
                     StreamState::HasMsg(msg) => {
-                        timeout_ms = 1000;
+                        timeout_ms = 0;
                         match tx.send(MultipleStreamMessage {
                             topic_index: chosen.topic_index,
                             message: msg.clone(),

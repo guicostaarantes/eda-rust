@@ -15,12 +15,10 @@ pub struct AccessTokenPayload {
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Permission {
     CreateMission,
-    UpdateAnyMission,
-    UpdateMissionIfCrewMember,
-    GetAnyMission,
-    GetMissionIfCrewMember,
-    GetAnyAstronaut,
-    GetAstronautIfCoCrew,
+    UpdateMission,
+    GetMission,
+    UpdateAstronaut,
+    GetAstronaut,
     #[serde(other)]
     Other,
 }

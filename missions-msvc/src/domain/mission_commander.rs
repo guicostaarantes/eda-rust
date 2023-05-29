@@ -1,8 +1,11 @@
 use crate::domain::mission_model::CreateMissionInput;
-use crate::domain::mission_model::CrewMemberAddedEvent;
+use crate::domain::mission_model::CrewDocument;
+use crate::domain::mission_model::CrewUpdatedEvent;
 use crate::domain::mission_model::MissionCreatedEvent;
 use crate::domain::mission_model::MissionDocument;
+use crate::domain::mission_model::MissionRole;
 use crate::domain::mission_model::MissionUpdatedEvent;
+use crate::domain::mission_model::UpdateCrewInput;
 use crate::domain::mission_model::UpdateMissionInput;
 use crate::domain::token_model::AccessTokenPayload;
 use crate::domain::token_model::Permission;
@@ -10,7 +13,6 @@ use crate::providers::emitter::KafkaEmitterImpl;
 use crate::providers::json::JsonSerializerImpl;
 use crate::providers::random::RandomImpl;
 use crate::providers::state::MongoStateImpl;
-use crate::providers::token::JwtTokenImpl;
 use crate::providers::token::TokenImplError;
 use log::error;
 use log::info;
@@ -41,20 +43,11 @@ pub enum MissionCommanderError {
 pub struct MissionCommander {
     emitter: Arc<KafkaEmitterImpl>,
     state: Arc<MongoStateImpl>,
-    token: Arc<JwtTokenImpl>,
 }
 
 impl MissionCommander {
-    pub fn new(
-        emitter: Arc<KafkaEmitterImpl>,
-        state: Arc<MongoStateImpl>,
-        token: Arc<JwtTokenImpl>,
-    ) -> Self {
-        Self {
-            emitter,
-            state,
-            token,
-        }
+    pub fn new(emitter: Arc<KafkaEmitterImpl>, state: Arc<MongoStateImpl>) -> Self {
+        Self { emitter, state }
     }
 }
 
@@ -93,14 +86,15 @@ impl MissionCommander {
         let payload = JsonSerializerImpl::serialize(&event)?;
         self.emitter.emit("mission_created", &id, &payload).await?;
 
-        let event = CrewMemberAddedEvent {
+        let event = CrewUpdatedEvent {
             mission_id: id.clone(),
             astronaut_id: token.astronaut_id,
+            roles: vec![MissionRole::Leader],
         };
 
         let payload = JsonSerializerImpl::serialize(&event)?;
         self.emitter
-            .emit("crew_member_added", &id, &payload)
+            .emit("crew_member_updated", &id, &payload)
             .await?;
 
         info!("mission created with id {}", id);
@@ -116,9 +110,32 @@ impl MissionCommander {
         id: String,
         input: UpdateMissionInput,
     ) -> Result<(), MissionCommanderError> {
+        let crew_from_token = match self
+            .state
+            .find_one_by_two_fields::<CrewDocument>(
+                "crew",
+                "mission_id",
+                &id,
+                "astronaut_id",
+                &token.astronaut_id,
+            )
+            .await
+        {
+            Err(err) => Err(MissionCommanderError::StateImplError(err)),
+            Ok(None) => Err(MissionCommanderError::Forbidden),
+            Ok(Some(m)) => Ok(m),
+        }?;
+
+        let is_allowed = token.permissions.contains(&Permission::UpdateMission)
+            && crew_from_token.roles.contains(&MissionRole::Leader);
+
+        if !is_allowed {
+            return Err(MissionCommanderError::Forbidden);
+        }
+
         info!("updating mission with id {}", id);
 
-        let mission = match self
+        match self
             .state
             .find_one_by_id::<MissionDocument>("missions", &id)
             .await
@@ -126,25 +143,6 @@ impl MissionCommander {
             Err(err) => Err(MissionCommanderError::StateImplError(err)),
             Ok(None) => Err(MissionCommanderError::MissionNotFound),
             Ok(Some(a)) => Ok(a),
-        }?;
-
-        if token.permissions.contains(&Permission::GetAnyMission) {
-            Ok(())
-        } else if token
-            .permissions
-            .contains(&Permission::GetMissionIfCrewMember)
-        {
-            if mission
-                .crew
-                .iter()
-                .any(|ast_id| ast_id == &token.astronaut_id)
-            {
-                Ok(())
-            } else {
-                Err(MissionCommanderError::Forbidden)
-            }
-        } else {
-            Err(MissionCommanderError::Forbidden)
         }?;
 
         if input.is_empty() {
@@ -174,6 +172,55 @@ impl MissionCommander {
         self.emitter.emit("mission_updated", &id, &payload).await?;
 
         info!("mission updated with id {}", id);
+
+        Ok(())
+    }
+}
+
+impl MissionCommander {
+    pub async fn update_crew(
+        &self,
+        token: AccessTokenPayload,
+        input: UpdateCrewInput,
+    ) -> Result<(), MissionCommanderError> {
+        let crew_from_token = match self
+            .state
+            .find_one_by_two_fields::<CrewDocument>(
+                "crew",
+                "mission_id",
+                &input.mission_id,
+                "astronaut_id",
+                &token.astronaut_id,
+            )
+            .await
+        {
+            Err(err) => Err(MissionCommanderError::StateImplError(err)),
+            Ok(None) => Err(MissionCommanderError::Forbidden),
+            Ok(Some(m)) => Ok(m),
+        }?;
+
+        let is_allowed = token.permissions.contains(&Permission::UpdateMission)
+            && crew_from_token.roles.contains(&MissionRole::Leader);
+
+        if !is_allowed {
+            return Err(MissionCommanderError::Forbidden);
+        }
+
+        let event = CrewUpdatedEvent {
+            mission_id: input.mission_id.clone(),
+            astronaut_id: input.astronaut_id.clone(),
+            roles: input.roles.clone(),
+        };
+
+        let payload = JsonSerializerImpl::serialize(&event)?;
+        self.emitter
+            .emit("crew_member_updated", &input.mission_id, &payload)
+            .await?;
+
+        info!(
+            "astronaut {} updated to mission {} crew",
+            &input.astronaut_id, &input.mission_id
+        );
 
         Ok(())
     }

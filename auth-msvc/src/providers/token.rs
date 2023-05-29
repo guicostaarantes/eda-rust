@@ -1,7 +1,5 @@
-use chrono::Utc;
 use jwt_simple::prelude::Claims;
 use jwt_simple::prelude::Duration;
-use jwt_simple::prelude::NoCustomClaims;
 use jwt_simple::prelude::RS256KeyPair;
 use jwt_simple::prelude::RS256PublicKey;
 use jwt_simple::prelude::RSAKeyPairLike;
@@ -21,8 +19,6 @@ pub struct JwtTokenImpl {
 pub enum TokenImplError {
     #[error(transparent)]
     JwtImplError(#[from] jwt_simple::Error),
-    #[error("token without expiration date")]
-    TokenWithoutExpirationDate,
 }
 
 impl JwtTokenImpl {
@@ -79,34 +75,5 @@ impl JwtTokenImpl {
             .ok_or(TokenImplError::JwtImplError(jwt_simple::Error::new(
                 jwt_simple::JWTError::InvalidSignature,
             )))
-    }
-}
-
-impl JwtTokenImpl {
-    #[allow(dead_code)]
-    pub fn get_token_seconds_remaining(&self, raw_token: &str) -> Result<u64, TokenImplError> {
-        let expires_at = self
-            .public_keys
-            .iter()
-            .find_map(|key| {
-                match key.verify_token::<NoCustomClaims>(
-                    raw_token,
-                    Some(VerificationOptions {
-                        time_tolerance: None,
-                        ..VerificationOptions::default()
-                    }),
-                ) {
-                    Ok(claims) => Some(claims.expires_at),
-                    Err(_) => None,
-                }
-            })
-            .ok_or(TokenImplError::JwtImplError(jwt_simple::Error::new(
-                jwt_simple::JWTError::InvalidSignature,
-            )))?;
-
-        match expires_at {
-            Some(exp) => Ok(exp.as_secs() - Utc::now().timestamp() as u64),
-            None => Err(TokenImplError::TokenWithoutExpirationDate),
-        }
     }
 }

@@ -1,15 +1,13 @@
-use crate::domain::mission_model::AstronautCreatedEvent;
-use crate::domain::mission_model::AstronautDocument;
-use crate::domain::mission_model::CrewMemberAddedEvent;
-use crate::domain::mission_model::CrewMemberRemoveDocument;
-use crate::domain::mission_model::CrewMemberRemovedEvent;
-use crate::domain::mission_model::CrewMemberUpdateDocument;
+use crate::domain::mission_model::CrewDocument;
+use crate::domain::mission_model::CrewUpdateDocument;
+use crate::domain::mission_model::CrewUpdatedEvent;
 use crate::domain::mission_model::MissionCreatedEvent;
 use crate::domain::mission_model::MissionDocument;
 use crate::domain::mission_model::MissionUpdateDocument;
 use crate::domain::mission_model::MissionUpdatedEvent;
 use crate::providers::json::JsonSerializerImpl;
 use crate::providers::listener::KafkaConsumerImpl;
+use crate::providers::random::RandomImpl;
 use crate::providers::state::MongoStateImpl;
 use log::error;
 use log::info;
@@ -37,14 +35,8 @@ impl MissionSynchronizer {
 
 impl MissionSynchronizer {
     pub async fn sync_events_to_state(&self) {
-        let mut stream = self.listener.listen_multiple(
-            &[
-                "mission_created",
-                "mission_updated",
-                "crew_member_added",
-                "crew_member_removed",
-                "astronaut_created",
-            ],
+        let mut stream = self.listener.listen(
+            &["mission_created", "mission_updated", "crew_member_updated"],
             "mongo",
         );
 
@@ -119,7 +111,7 @@ impl MissionSynchronizer {
                         };
                     }
                     2 => {
-                        let event = match JsonSerializerImpl::deserialize::<CrewMemberAddedEvent>(
+                        let event = match JsonSerializerImpl::deserialize::<CrewUpdatedEvent>(
                             &re.message.get_payload(),
                         ) {
                             Ok(payload) => payload,
@@ -129,119 +121,79 @@ impl MissionSynchronizer {
                             }
                         };
 
-                        match self
+                        let doc_id = match self
                             .state
-                            .update_one_push_to_field(
-                                "missions",
-                                "_id",
+                            .find_one_by_two_fields::<CrewDocument>(
+                                "crew",
+                                "mission_id",
                                 &event.mission_id,
-                                &CrewMemberUpdateDocument {
-                                    crew: Some(event.astronaut_id.clone()),
-                                    participant_of: None,
-                                },
-                            )
-                            .await
-                        {
-                            Err(err) => {
-                                error!("error updating mission in state: {}", err);
-                                continue;
-                            }
-                            Ok(_) => {}
-                        };
-
-                        match self
-                            .state
-                            .update_one_push_to_field(
-                                "astronauts",
-                                "_id",
+                                "astronaut_id",
                                 &event.astronaut_id,
-                                &CrewMemberUpdateDocument {
-                                    crew: None,
-                                    participant_of: Some(event.mission_id.clone()),
-                                },
                             )
                             .await
                         {
                             Err(err) => {
-                                error!("error updating astronaut in state: {}", err);
+                                error!("error updating crew in state: {}", err);
                                 continue;
                             }
-                            Ok(_) => {}
-                        };
-                    }
-                    3 => {
-                        let event = match JsonSerializerImpl::deserialize::<CrewMemberRemovedEvent>(
-                            &re.message.get_payload(),
-                        ) {
-                            Ok(payload) => payload,
-                            Err(err) => {
-                                error!("error deserializing payload: {}", err);
-                                continue;
-                            }
+                            Ok(None) => None,
+                            Ok(Some(doc)) => Some(doc.id),
                         };
 
-                        match self
-                            .state
-                            .update_one_pull_from_field(
-                                "missions",
-                                "_id",
-                                &event.mission_id,
-                                &CrewMemberRemoveDocument {
-                                    crew: Some(event.astronaut_id.clone()),
-                                    participant_of: None,
-                                },
-                            )
-                            .await
-                        {
-                            Err(err) => {
-                                error!("error updating mission in state: {}", err);
-                                continue;
+                        if let Some(doc_id) = doc_id {
+                            if event.roles.len() == 0 {
+                                match self
+                                    .state
+                                    .delete_one_by_id::<CrewDocument>("crew", &doc_id)
+                                    .await
+                                {
+                                    Err(err) => {
+                                        error!("error removing crew in state: {}", err);
+                                        continue;
+                                    }
+                                    Ok(_) => {}
+                                };
+                            } else {
+                                match self
+                                    .state
+                                    .update_one(
+                                        "crew",
+                                        "_id",
+                                        &doc_id,
+                                        &CrewUpdateDocument {
+                                            roles: event.roles.clone(),
+                                        },
+                                    )
+                                    .await
+                                {
+                                    Err(err) => {
+                                        error!("error updating crew in state: {}", err);
+                                        continue;
+                                    }
+                                    Ok(_) => {}
+                                };
                             }
-                            Ok(_) => {}
-                        };
-
-                        match self
-                            .state
-                            .update_one_pull_from_field(
-                                "astronauts",
-                                "_id",
-                                &event.mission_id,
-                                &CrewMemberRemoveDocument {
-                                    crew: None,
-                                    participant_of: Some(event.mission_id.clone()),
-                                },
-                            )
-                            .await
-                        {
-                            Err(err) => {
-                                error!("error updating astronaut in state: {}", err);
-                                continue;
-                            }
-                            Ok(_) => {}
-                        };
-                    }
-                    4 => {
-                        let event = match JsonSerializerImpl::deserialize::<AstronautCreatedEvent>(
-                            &re.message.get_payload(),
-                        ) {
-                            Ok(payload) => payload,
-                            Err(err) => {
-                                error!("error deserializing payload: {}", err);
-                                continue;
-                            }
-                        };
-
-                        match self
-                            .state
-                            .insert_one("astronauts", &AstronautDocument::from(&event))
-                            .await
-                        {
-                            Err(err) => {
-                                error!("error creating astronaut in state: {}", err);
-                                continue;
-                            }
-                            Ok(_) => {}
-                        };
+                        } else {
+                            match self
+                                .state
+                                .insert_one(
+                                    "crew",
+                                    &CrewDocument {
+                                        id: RandomImpl::uuid(),
+                                        mission_id: event.mission_id.clone(),
+                                        astronaut_id: event.astronaut_id.clone(),
+                                        roles: event.roles.clone(),
+                                    },
+                                )
+                                .await
+                            {
+                                Err(err) => {
+                                    error!("error adding to crew in state: {}", err);
+                                    continue;
+                                }
+                                Ok(_) => {}
+                            };
+                        }
                     }
                     _ => {
                         error!("unsupported case");

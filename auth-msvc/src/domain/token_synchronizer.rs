@@ -31,7 +31,7 @@ impl TokenSynchronizer {
     pub async fn sync_events_to_state(&self) {
         let mut stream = self
             .listener
-            .listen_multiple(&["refresh_token_created", "refresh_token_revoked"], "mongo");
+            .listen(&["refresh_token_created", "refresh_token_revoked"], "mongo");
 
         while let Some(r) = stream.next().await {
             match r {

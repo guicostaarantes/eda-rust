@@ -1,4 +1,5 @@
 use crate::domain::mission_commander::MissionCommanderError;
+use crate::domain::mission_model::AstronautCrewInfo;
 use crate::domain::mission_model::CreateMissionOutput;
 use crate::domain::mission_model::Mission;
 use crate::domain::mission_querier::MissionQuerierError;
@@ -36,9 +37,6 @@ impl IntoResponse for MissionQuerierError {
         let (status, message) = match self {
             MissionQuerierError::MissionNotFound => (StatusCode::NOT_FOUND, "Mission not found"),
             MissionQuerierError::Forbidden => (StatusCode::FORBIDDEN, "Forbidden"),
-            MissionQuerierError::AstronautNotFound => {
-                (StatusCode::NOT_FOUND, "Astronaut not found")
-            }
             _ => (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error"),
         };
 
@@ -59,5 +57,11 @@ impl IntoResponse for Mission {
 impl IntoResponse for CreateMissionOutput {
     fn into_response(self) -> Response {
         (StatusCode::CREATED, Json(json!(self))).into_response()
+    }
+}
+
+impl IntoResponse for AstronautCrewInfo {
+    fn into_response(self) -> Response {
+        (StatusCode::OK, Json(json!(self.0))).into_response()
     }
 }

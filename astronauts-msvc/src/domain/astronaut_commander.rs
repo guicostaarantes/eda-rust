@@ -11,7 +11,6 @@ use crate::providers::hash::HashImplError;
 use crate::providers::json::JsonSerializerImpl;
 use crate::providers::random::RandomImpl;
 use crate::providers::state::MongoStateImpl;
-use crate::providers::token::JwtTokenImpl;
 use crate::providers::token::TokenImplError;
 use log::error;
 use log::info;
@@ -44,20 +43,11 @@ pub enum AstronautCommanderError {
 pub struct AstronautCommander {
     emitter: Arc<KafkaEmitterImpl>,
     state: Arc<MongoStateImpl>,
-    token: Arc<JwtTokenImpl>,
 }
 
 impl AstronautCommander {
-    pub fn new(
-        emitter: Arc<KafkaEmitterImpl>,
-        state: Arc<MongoStateImpl>,
-        token: Arc<JwtTokenImpl>,
-    ) -> Self {
-        Self {
-            emitter,
-            state,
-            token,
-        }
+    pub fn new(emitter: Arc<KafkaEmitterImpl>, state: Arc<MongoStateImpl>) -> Self {
+        Self { emitter, state }
     }
 }
 
@@ -109,9 +99,7 @@ impl AstronautCommander {
     ) -> Result<(), AstronautCommanderError> {
         info!("updating astronaut with id {}", id);
 
-        let is_allowed = token.permissions.contains(&Permission::UpdateAnyAstronaut)
-            || (token.permissions.contains(&Permission::UpdateOwnAstronaut)
-                && token.astronaut_id == id);
+        let is_allowed = token.permissions.contains(&Permission::UpdateAstronaut);
 
         if !is_allowed {
             return Err(AstronautCommanderError::Forbidden);
