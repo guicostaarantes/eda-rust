@@ -7,6 +7,7 @@ use crate::domain::mission_model::AstronautCrewInfo;
 use crate::domain::mission_model::CreateMissionInput;
 use crate::domain::mission_model::CreateMissionOutput;
 use crate::domain::mission_model::Mission;
+use crate::domain::mission_model::MissionCrewInfo;
 use crate::domain::mission_model::UpdateCrewInput;
 use crate::domain::mission_model::UpdateMissionInput;
 use crate::domain::mission_querier::MissionQuerier;
@@ -79,6 +80,14 @@ async fn get_mission(
     mission_querier.get_mission_by_id(payload, id).await
 }
 
+async fn get_mission_crew(
+    BearerToken(payload): BearerToken,
+    Extension(mission_querier): Extension<Arc<MissionQuerier>>,
+    Path(id): Path<String>,
+) -> Result<MissionCrewInfo, MissionQuerierError> {
+    mission_querier.get_mission_crew_info(payload, id).await
+}
+
 async fn get_astronaut(
     BearerToken(payload): BearerToken,
     Extension(mission_querier): Extension<Arc<MissionQuerier>>,
@@ -91,8 +100,10 @@ async fn missions_updated_sse(
     BearerToken(payload): BearerToken,
     BearerTokenExpiresIn(ttl): BearerTokenExpiresIn,
     Extension(mission_querier): Extension<Arc<MissionQuerier>>,
-    Json(input): Json<Vec<String>>,
+    Path(ids): Path<String>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, MissionQuerierError> {
+    let input: Vec<String> = ids.split(',').map(|s| s.to_string()).collect();
+
     let stream = mission_querier
         .missions_or_crew_updated_stream(payload, ttl, input)
         .await?;
@@ -113,8 +124,8 @@ pub fn missions_route(
             "/missions/:id",
             put(update_mission).delete(delete_mission).get(get_mission),
         )
-        .route("/missions/:id/crew", put(update_crew))
-        .route("/missions-updated", get(missions_updated_sse))
+        .route("/missions/:id/crew", put(update_crew).get(get_mission_crew))
+        .route("/live/missions/:ids", get(missions_updated_sse))
         .route("/astronauts/:id", get(get_astronaut))
         .layer(Extension(token_impl))
         .layer(Extension(mission_querier))

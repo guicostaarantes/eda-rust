@@ -70,8 +70,10 @@ async fn astronauts_updated_sse(
     BearerToken(payload): BearerToken,
     BearerTokenExpiresIn(ttl): BearerTokenExpiresIn,
     Extension(astronaut_querier): Extension<Arc<AstronautQuerier>>,
-    Json(input): Json<Vec<String>>,
+    Path(ids): Path<String>,
 ) -> Result<Sse<impl Stream<Item = Result<Event, Infallible>>>, AstronautQuerierError> {
+    let input: Vec<String> = ids.split(',').map(|s| s.to_string()).collect();
+
     let stream = astronaut_querier
         .astronauts_updated_stream(payload, ttl, input)
         .await?;
@@ -81,7 +83,7 @@ async fn astronauts_updated_sse(
     Ok(Sse::new(stream))
 }
 
-async fn example_stream() -> Sse<impl Stream<Item = Result<Event, std::fmt::Error>>> {
+async fn time_elapsed() -> Sse<impl Stream<Item = Result<Event, std::fmt::Error>>> {
     let stream = stream::iter(0..=10)
         .map(|s| Ok(Event::default().event("time_elapsed").data(s.to_string())))
         .throttle(std::time::Duration::from_secs(1));
@@ -102,8 +104,8 @@ pub fn astronauts_route(
                 .delete(delete_astronaut)
                 .get(get_astronaut),
         )
-        .route("/astronauts-updated", get(astronauts_updated_sse))
-        .route("/time-elapsed", get(example_stream))
+        .route("/live/astronauts/:ids", get(astronauts_updated_sse))
+        .route("/time-elapsed", get(time_elapsed))
         .layer(Extension(token_impl))
         .layer(Extension(astronaut_querier))
         .layer(Extension(astronaut_commander))

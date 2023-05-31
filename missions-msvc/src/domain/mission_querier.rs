@@ -2,6 +2,7 @@ use crate::domain::mission_model::AstronautCrewInfo;
 use crate::domain::mission_model::CrewDocument;
 use crate::domain::mission_model::CrewUpdatedEvent;
 use crate::domain::mission_model::Mission;
+use crate::domain::mission_model::MissionCrewInfo;
 use crate::domain::mission_model::MissionDocument;
 use crate::domain::mission_model::MissionUpdatedEvent;
 use crate::domain::token_model::AccessTokenPayload;
@@ -65,6 +66,27 @@ impl MissionQuerier {
         let mission = Mission::from(&mission_doc);
 
         Ok(mission)
+    }
+}
+
+impl MissionQuerier {
+    pub async fn get_mission_crew_info(
+        &self,
+        token: AccessTokenPayload,
+        id: String,
+    ) -> Result<MissionCrewInfo, MissionQuerierError> {
+        let is_allowed = token.permissions.contains(&Permission::GetMission);
+
+        if !is_allowed {
+            return Err(MissionQuerierError::Forbidden);
+        };
+
+        let crews = self
+            .state
+            .find_all_by_field::<CrewDocument>("crew", "mission_id", &id)
+            .await?;
+
+        Ok(MissionCrewInfo::from(&crews))
     }
 }
 

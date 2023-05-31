@@ -67,6 +67,15 @@ pub struct CreateMissionOutput {
 }
 
 #[derive(Deserialize, Serialize)]
+pub struct MissionCrewInfoItem {
+    pub astronaut_id: String,
+    pub roles: Vec<MissionRole>,
+}
+
+#[derive(Default, Deserialize, Serialize)]
+pub struct MissionCrewInfo(pub Vec<MissionCrewInfoItem>);
+
+#[derive(Deserialize, Serialize)]
 pub struct AstronautCrewInfoItem {
     pub mission_id: String,
     pub roles: Vec<MissionRole>,
@@ -169,6 +178,20 @@ impl From<&MissionUpdatedEvent> for MissionUpdateDocument {
             name: input.name.clone(),
             start_date: input.start_date.clone(),
         }
+    }
+}
+
+impl From<&Vec<CrewDocument>> for MissionCrewInfo {
+    fn from(input: &Vec<CrewDocument>) -> Self {
+        input
+            .iter()
+            .fold(MissionCrewInfo::default(), |mut acc, val| {
+                acc.0.push(MissionCrewInfoItem {
+                    astronaut_id: val.astronaut_id.clone(),
+                    roles: val.roles.clone(),
+                });
+                acc
+            })
     }
 }
 

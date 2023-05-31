@@ -2,6 +2,7 @@ use crate::domain::mission_commander::MissionCommanderError;
 use crate::domain::mission_model::AstronautCrewInfo;
 use crate::domain::mission_model::CreateMissionOutput;
 use crate::domain::mission_model::Mission;
+use crate::domain::mission_model::MissionCrewInfo;
 use crate::domain::mission_querier::MissionQuerierError;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -57,6 +58,12 @@ impl IntoResponse for Mission {
 impl IntoResponse for CreateMissionOutput {
     fn into_response(self) -> Response {
         (StatusCode::CREATED, Json(json!(self))).into_response()
+    }
+}
+
+impl IntoResponse for MissionCrewInfo {
+    fn into_response(self) -> Response {
+        (StatusCode::OK, Json(json!(self.0))).into_response()
     }
 }
 
