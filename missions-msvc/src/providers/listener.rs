@@ -2,6 +2,7 @@ use futures_util::future::join_all;
 use log::error;
 use rdkafka::config::ClientConfig;
 use rdkafka::consumer::stream_consumer::StreamConsumer;
+use rdkafka::consumer::CommitMode;
 use rdkafka::consumer::Consumer;
 use rdkafka::Message;
 use rdkafka::Timestamp;
@@ -71,8 +72,7 @@ impl KafkaConsumerImpl {
             let consumer: StreamConsumer = ClientConfig::new()
                 .set("bootstrap.servers", &self.kafka_url)
                 .set("group.id", &identifier)
-                .set("enable.auto.commit", "true")
-                .set("auto.commit.interval.ms", "1000")
+                .set("enable.auto.commit", "false")
                 .set("auto.offset.reset", "earliest")
                 .create()
                 .expect("Consumer creation failed");
@@ -124,7 +124,9 @@ impl KafkaConsumerImpl {
                                     Err(err) => {
                                         error!("error while sending message to channel: {}", err)
                                     }
-                                    _ => {}
+                                    _ => {
+                                        consumer.commit_message(&msg, CommitMode::Async).unwrap();
+                                    }
                                 };
                             }
                             Some(Err(err)) => {
