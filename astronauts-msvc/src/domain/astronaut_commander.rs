@@ -13,7 +13,6 @@ use crate::providers::random::RandomImpl;
 use crate::providers::state::MongoStateImpl;
 use crate::providers::token::TokenImplError;
 use log::error;
-use log::info;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -58,8 +57,6 @@ impl AstronautCommander {
     ) -> Result<String, AstronautCommanderError> {
         let id = RandomImpl::uuid();
 
-        info!("creating astronaut with id {}", id);
-
         match self
             .state
             .find_one_by_field::<AstronautDocument>("astronauts", "name", &input.name)
@@ -84,8 +81,6 @@ impl AstronautCommander {
             .emit("astronaut_created", &id, &payload)
             .await?;
 
-        info!("astronaut created with id {}", id);
-
         Ok(id)
     }
 }
@@ -97,8 +92,6 @@ impl AstronautCommander {
         id: String,
         input: UpdateAstronautInput,
     ) -> Result<(), AstronautCommanderError> {
-        info!("updating astronaut with id {}", id);
-
         let is_allowed = token.permissions.contains(&Permission::UpdateAstronaut);
 
         if !is_allowed {
@@ -151,8 +144,6 @@ impl AstronautCommander {
         self.emitter
             .emit("astronaut_updated", &id, &payload)
             .await?;
-
-        info!("astronaut updated with id {}", id);
 
         Ok(())
     }

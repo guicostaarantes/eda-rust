@@ -15,7 +15,6 @@ use crate::providers::random::RandomImpl;
 use crate::providers::state::MongoStateImpl;
 use crate::providers::token::TokenImplError;
 use log::error;
-use log::info;
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -65,8 +64,6 @@ impl MissionCommander {
 
         let id = RandomImpl::uuid();
 
-        info!("creating mission with id {}", id);
-
         match self
             .state
             .find_one_by_field::<MissionDocument>("missions", "name", &input.name)
@@ -96,8 +93,6 @@ impl MissionCommander {
         self.emitter
             .emit("crew_member_updated", &id, &payload)
             .await?;
-
-        info!("mission created with id {}", id);
 
         Ok(id)
     }
@@ -132,8 +127,6 @@ impl MissionCommander {
         if !is_allowed {
             return Err(MissionCommanderError::Forbidden);
         }
-
-        info!("updating mission with id {}", id);
 
         match self
             .state
@@ -170,8 +163,6 @@ impl MissionCommander {
         let payload = JsonSerializerImpl::serialize(&event)?;
 
         self.emitter.emit("mission_updated", &id, &payload).await?;
-
-        info!("mission updated with id {}", id);
 
         Ok(())
     }
@@ -216,11 +207,6 @@ impl MissionCommander {
         self.emitter
             .emit("crew_member_updated", &input.mission_id, &payload)
             .await?;
-
-        info!(
-            "astronaut {} updated to mission {} crew",
-            &input.astronaut_id, &input.mission_id
-        );
 
         Ok(())
     }
