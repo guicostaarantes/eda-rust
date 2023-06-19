@@ -1,5 +1,6 @@
 use mongodb::bson::doc;
 use mongodb::error::Result;
+use mongodb::options::ClientOptions;
 use mongodb::Client;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -12,7 +13,11 @@ pub struct MongoStateImpl {
 
 impl MongoStateImpl {
     pub async fn new(conn_url: &str, db_name: &str) -> Result<Self> {
-        let client = Client::with_uri_str(conn_url).await?;
+        let mut client_options = ClientOptions::parse(conn_url).await?;
+
+        client_options.max_pool_size = Some(100);
+
+        let client = Client::with_options(client_options)?;
 
         client
             .database(db_name)

@@ -37,6 +37,8 @@ impl KafkaMessage {
     }
 }
 
+const CHANNEL_CAPACITY: usize = 4_096;
+
 #[derive(Clone)]
 pub struct KafkaConsumerImpl {
     kafka_url: String,
@@ -95,7 +97,7 @@ impl KafkaConsumerImpl {
         let mut all_senders = self.senders.lock().unwrap();
 
         if all_senders.get(&identifier).is_none() {
-            let (tx, _rx) = channel(4096);
+            let (tx, _rx) = channel(CHANNEL_CAPACITY);
 
             all_senders.insert(identifier.clone(), Arc::new(tx));
         }
@@ -117,6 +119,9 @@ impl KafkaConsumerImpl {
                     match consumer.stream().next().await {
                         Some(Ok(msg)) => match msg.payload_view::<str>() {
                             Some(Ok(s)) => {
+                                while sender.len() >= CHANNEL_CAPACITY {
+                                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                                }
                                 match sender.send(KafkaMessage {
                                     timestamp: msg.timestamp(),
                                     payload: s.to_string(),
@@ -180,7 +185,7 @@ impl KafkaConsumerImpl {
             })
             .collect();
 
-        let (tx, rx) = channel(32);
+        let (tx, rx) = channel(CHANNEL_CAPACITY);
 
         // TODO: fetch the state of each consumer and only loop below when all are stable
         // allowing the consumers time to become stable
@@ -188,6 +193,10 @@ impl KafkaConsumerImpl {
 
         tokio::spawn(async move {
             loop {
+                while tx.len() >= CHANNEL_CAPACITY {
+                    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                }
+
                 let st = &mut streams;
 
                 let promises = st
