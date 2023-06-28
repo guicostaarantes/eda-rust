@@ -1,0 +1,25 @@
+kind: ConfigMap
+metadata:
+  name: kafka-config
+apiVersion: v1
+data:
+  init.sh: |-
+    #!/bin/bash
+    cub kafka-ready -b kafka-service.kafka.svc.cluster.local:29092 1 30 && \
+    kafka-topics --zookeeper zookeeper-service.kafka.svc.cluster.local:2181 --create --topic astronaut_created --partitions 1 --replication-factor 1 --if-not-exists && \
+    kafka-topics --zookeeper zookeeper-service.kafka.svc.cluster.local:2181 --alter --topic astronaut_created --config cleanup.policy=compact && \
+    kafka-topics --zookeeper zookeeper-service.kafka.svc.cluster.local:2181 --create --topic astronaut_updated --partitions 1 --replication-factor 1 --if-not-exists && \
+    kafka-topics --zookeeper zookeeper-service.kafka.svc.cluster.local:2181 --alter --topic astronaut_updated --config cleanup.policy=compact && \
+    kafka-topics --zookeeper zookeeper-service.kafka.svc.cluster.local:2181 --create --topic mission_created --partitions 1 --replication-factor 1 --if-not-exists && \
+    kafka-topics --zookeeper zookeeper-service.kafka.svc.cluster.local:2181 --alter --topic mission_created --config cleanup.policy=compact && \
+    kafka-topics --zookeeper zookeeper-service.kafka.svc.cluster.local:2181 --create --topic mission_updated --partitions 1 --replication-factor 1 --if-not-exists && \
+    kafka-topics --zookeeper zookeeper-service.kafka.svc.cluster.local:2181 --alter --topic mission_updated --config cleanup.policy=compact && \
+    kafka-topics --zookeeper zookeeper-service.kafka.svc.cluster.local:2181 --create --topic crew_member_added --partitions 1 --replication-factor 1 --if-not-exists && \
+    kafka-topics --zookeeper zookeeper-service.kafka.svc.cluster.local:2181 --alter --topic crew_member_added --config cleanup.policy=compact && \
+    kafka-topics --zookeeper zookeeper-service.kafka.svc.cluster.local:2181 --create --topic crew_member_removed --partitions 1 --replication-factor 1 --if-not-exists && \
+    kafka-topics --zookeeper zookeeper-service.kafka.svc.cluster.local:2181 --alter --topic crew_member_removed --config cleanup.policy=compact && \
+    kafka-topics --zookeeper zookeeper-service.kafka.svc.cluster.local:2181 --create --topic refresh_token_created --partitions 1 --replication-factor 1 --if-not-exists && \
+    kafka-topics --zookeeper zookeeper-service.kafka.svc.cluster.local:2181 --alter --topic refresh_token_created --config cleanup.policy=delete && \
+    kafka-topics --zookeeper zookeeper-service.kafka.svc.cluster.local:2181 --create --topic refresh_token_revoked --partitions 1 --replication-factor 1 --if-not-exists && \
+    kafka-topics --zookeeper zookeeper-service.kafka.svc.cluster.local:2181 --alter --topic refresh_token_revoked --config cleanup.policy=delete
+

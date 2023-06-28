@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-msvc-deployment
+  labels:
+    app: auth-msvc
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: auth-msvc
+  template:
+    metadata:
+      labels:
+        app: auth-msvc
+    spec:
+      containers:
+      - name: auth-msvc
+        image: eda-rust-auth-msvc:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8000
+        env:
+        - name: UNIQUE_POD_ID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: KAFKA_URL
+          value: kafka-service.kafka.svc.cluster.local:29092
+        - name: MONGO_URL
+          value: mongodb://localhost:27017/auth-db
+        - name: MONGO_DATABASE
+          value: auth-db
+        - name: PUBLIC_KEYS_PEM
+          valueFrom:
+            secretKeyRef:
+              name: jwt-keys
+              key: public-keys-pem
+        - name: PRIVATE_KEY_PEM
+          valueFrom:
+            secretKeyRef:
+              name: jwt-keys
+              key: private-key-pem
+      - name: mongo
+        image: mongo:latest
+        ports:
+        - containerPort: 27017
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-msvc-service
+spec:
+  type: NodePort
+  selector:
+    app: auth-msvc
+  ports:
+  - protocol: TCP
+    port: 8000
+    nodePort: 30001
