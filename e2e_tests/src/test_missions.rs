@@ -24,7 +24,7 @@ async fn missions_should_be_created() {
     const SLEEP_MS: u64 = 2000;
 
     let client = Client::new();
-    let astronaut_name = format!("astro_{}_0", current_timestamp());
+    let astronaut_name = format!("astro_{}_0000", current_timestamp());
 
     let req_1 = Request::post(astronauts_url("/astronauts"))
         .header("Content-Type", "application/json")

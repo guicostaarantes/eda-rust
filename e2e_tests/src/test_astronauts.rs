@@ -34,7 +34,12 @@ async fn astronaut_should_be_fetched_2000ms_after_creation() {
 
     for j in 0..ITERATIONS {
         let timestamp = current_timestamp();
-        println!("starting iteration {} at {}", j + 1, chrono::Local::now());
+        println!(
+            "creating {} astronauts - iter {} at {}",
+            OPERATIONS,
+            j + 1,
+            chrono::Local::now()
+        );
 
         let futures = (0..OPERATIONS).map(|i| async move {
             let client = Client::new();
@@ -55,8 +60,14 @@ async fn astronaut_should_be_fetched_2000ms_after_creation() {
         });
 
         join_all(futures).await;
-        println!("finishing iteration {} at {}", j + 1, chrono::Local::now());
+        println!("finished at {}", chrono::Local::now());
         sleep(Duration::from_millis(SLEEP_MS)).await;
+        println!(
+            "authenticating {} astronauts - iter {} at {}",
+            OPERATIONS,
+            j + 1,
+            chrono::Local::now()
+        );
 
         let futures = (0..OPERATIONS).map(|i| async move {
             let client = Client::new();
@@ -76,5 +87,6 @@ async fn astronaut_should_be_fetched_2000ms_after_creation() {
         });
 
         join_all(futures).await;
+        println!("finished at {}", chrono::Local::now());
     }
 }
