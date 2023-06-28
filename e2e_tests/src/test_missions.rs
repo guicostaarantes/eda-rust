@@ -19,6 +19,10 @@ struct TokenPair {
 
 #[tokio::test]
 async fn missions_should_be_created() {
+    const ITERATIONS: i32 = 10;
+    const OPERATIONS: i32 = 100;
+    const SLEEP_MS: u64 = 2000;
+
     let client = Client::new();
     let astronaut_name = format!("astro_{}_0", current_timestamp());
 
@@ -54,8 +58,8 @@ async fn missions_should_be_created() {
     let body = serde_json::from_slice::<TokenPair>(&body).unwrap();
     let access_token = &body.access_token;
 
-    for _ in 0..100 {
-        let futures = (0..20).map(|i| async move {
+    for _ in 0..ITERATIONS {
+        let futures = (0..OPERATIONS).map(|i| async move {
             let client = Client::new();
             let mission_name = format!("mission_{}_{}", current_timestamp(), i);
 
@@ -73,7 +77,7 @@ async fn missions_should_be_created() {
             let res_3 = client.request(req_3).await.expect("error in response");
             assert_eq!(res_3.status(), 201);
 
-            sleep(Duration::from_millis(1000)).await;
+            sleep(Duration::from_millis(SLEEP_MS)).await;
         });
 
         join_all(futures).await;

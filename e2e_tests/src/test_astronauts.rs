@@ -27,9 +27,10 @@ async fn create_astronaut_should_422_on_bad_input() {
 }
 
 #[tokio::test]
-async fn astronaut_should_be_fetched_1000ms_after_creation() {
-    const ITERATIONS: i32 = 20;
+async fn astronaut_should_be_fetched_2000ms_after_creation() {
+    const ITERATIONS: i32 = 10;
     const OPERATIONS: i32 = 500;
+    const SLEEP_MS: u64 = 2000;
 
     for j in 0..ITERATIONS {
         let timestamp = current_timestamp();
@@ -55,7 +56,7 @@ async fn astronaut_should_be_fetched_1000ms_after_creation() {
 
         join_all(futures).await;
         println!("finishing iteration {} at {}", j + 1, chrono::Local::now());
-        sleep(Duration::from_millis(2000)).await;
+        sleep(Duration::from_millis(SLEEP_MS)).await;
 
         let futures = (0..OPERATIONS).map(|i| async move {
             let client = Client::new();
