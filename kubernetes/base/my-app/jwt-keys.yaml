@@ -1,4 +1,4 @@
-# TODO: replace these keys with new ones, these are examples and possibly leaked into public Github repositories
+# TODO: replace the keys below with new ones, they are used as example and are leaked into public Github repositories making them insecure
 apiVersion: v1
 kind: Secret
 metadata:
