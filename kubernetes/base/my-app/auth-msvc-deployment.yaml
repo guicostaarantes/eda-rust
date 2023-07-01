@@ -15,8 +15,8 @@ spec:
         app: auth-msvc
     spec:
       containers:
-      - name: auth-msvc
-        image: eda-rust-auth-msvc:latest
+      - name: service
+        image: k8s-auth-msvc:latest
         imagePullPolicy: Never
         ports:
         - containerPort: 8000

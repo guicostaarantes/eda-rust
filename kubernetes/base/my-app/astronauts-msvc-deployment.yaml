@@ -15,8 +15,8 @@ spec:
         app: astronauts-msvc
     spec:
       containers:
-      - name: astronauts-msvc
-        image: eda-rust-astronauts-msvc:latest
+      - name: service
+        image: k8s-astronauts-msvc:latest
         imagePullPolicy: Never
         ports:
         - containerPort: 8000
