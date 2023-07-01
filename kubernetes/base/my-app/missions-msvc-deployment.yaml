@@ -26,7 +26,7 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         - name: KAFKA_URL
-          value: kafka-service.kafka.svc.cluster.local:29092
+          value: kafka-service.kafka.svc.cluster.local:9092
         - name: MONGO_URL
           value: mongodb://localhost:27017/missions-db
         - name: MONGO_DATABASE

@@ -19,7 +19,7 @@ services:
         hard: 40000
     environment:
       RUST_LOG: info
-      KAFKA_URL: kafka:29092
+      KAFKA_URL: kafka:9092
       MONGO_URL: mongodb://auth-msvc:IBAQDiiCGaFZUDoC@mongo:27017/auth-db
       MONGO_DATABASE: auth-db
       UNIQUE_POD_ID: b5FjjCz92lmzCk4a
@@ -47,7 +47,7 @@ services:
         hard: 40000
     environment:
       RUST_LOG: info
-      KAFKA_URL: kafka:29092
+      KAFKA_URL: kafka:9092
       MONGO_URL: mongodb://astronauts-msvc:8b9z0mE37Cv1OK5I@mongo:27017/astronauts-db
       MONGO_DATABASE: astronauts-db
       UNIQUE_POD_ID: ILw7xElp3F9Dwc2a
@@ -74,7 +74,7 @@ services:
         hard: 40000
     environment:
       RUST_LOG: info
-      KAFKA_URL: kafka:29092
+      KAFKA_URL: kafka:9092
       MONGO_URL: mongodb://missions-msvc:Wxs9KoEdXAkHtBj8@mongo:27017/missions-db
       MONGO_DATABASE: missions-db
       UNIQUE_POD_ID: Nc1diTecKPcFdbda
@@ -111,56 +111,37 @@ services:
               ; do sleep 2; done\""
 
   # kafka cluster
-  zookeeper:
-    image: confluentinc/cp-zookeeper:5.2.4
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    restart: always
   kafka:
-    image: confluentinc/cp-kafka:5.3.1
-    depends_on:
-      - zookeeper
+    image: bitnami/kafka:3.5
     volumes:
       - ./.tmp/kafka:/var/lib/kafka/data
     environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      ALLOW_PLAINTEXT_LISTENER: yes
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
     restart: always
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     ports:
       - 6002:8080
     depends_on:
-      - zookeeper
       - kafka
     environment:
       KAFKA_CLUSTERS_0_NAME: cluster0
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
-      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
     restart: always
 
   # one time command to start kafka topics if don't exist
   kafka-init-topics:
-    image: confluentinc/cp-kafka:5.3.1
+    image: bitnami/kafka:3.5
     depends_on:
       - kafka
-    command: "bash -c 'cub kafka-ready -b kafka:29092 1 30 && \
-             kafka-topics --zookeeper zookeeper:2181 --create --topic astronaut_created --partitions 1 --replication-factor 1 --if-not-exists && \
-             kafka-topics --zookeeper zookeeper:2181 --alter --topic astronaut_created --config cleanup.policy=compact && \
-             kafka-topics --zookeeper zookeeper:2181 --create --topic astronaut_updated --partitions 1 --replication-factor 1 --if-not-exists && \
-             kafka-topics --zookeeper zookeeper:2181 --alter --topic astronaut_updated --config cleanup.policy=compact && \
-             kafka-topics --zookeeper zookeeper:2181 --create --topic mission_created --partitions 1 --replication-factor 1 --if-not-exists && \
-             kafka-topics --zookeeper zookeeper:2181 --alter --topic mission_created --config cleanup.policy=compact && \
-             kafka-topics --zookeeper zookeeper:2181 --create --topic mission_updated --partitions 1 --replication-factor 1 --if-not-exists && \
-             kafka-topics --zookeeper zookeeper:2181 --alter --topic mission_updated --config cleanup.policy=compact && \
-             kafka-topics --zookeeper zookeeper:2181 --create --topic crew_member_added --partitions 1 --replication-factor 1 --if-not-exists && \
-             kafka-topics --zookeeper zookeeper:2181 --alter --topic crew_member_added --config cleanup.policy=compact && \
-             kafka-topics --zookeeper zookeeper:2181 --create --topic crew_member_removed --partitions 1 --replication-factor 1 --if-not-exists && \
-             kafka-topics --zookeeper zookeeper:2181 --alter --topic crew_member_removed --config cleanup.policy=compact && \
-             kafka-topics --zookeeper zookeeper:2181 --create --topic refresh_token_created --partitions 1 --replication-factor 1 --if-not-exists && \
-             kafka-topics --zookeeper zookeeper:2181 --alter --topic refresh_token_created --config cleanup.policy=delete && \
-             kafka-topics --zookeeper zookeeper:2181 --create --topic refresh_token_revoked --partitions 1 --replication-factor 1 --if-not-exists && \
-             kafka-topics --zookeeper zookeeper:2181 --alter --topic refresh_token_revoked --config cleanup.policy=delete'"
+    restart: on-failure
+    command: |-
+      bash -c '/opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --topic astronaut_created --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists && \
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --topic astronaut_updated --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists && \
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --topic mission_created --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists && \
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --topic mission_updated --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists && \
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --topic crew_member_added --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists && \
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --topic crew_member_removed --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists && \
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --topic refresh_token_created --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists && \
+      /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --topic refresh_token_revoked --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists'
