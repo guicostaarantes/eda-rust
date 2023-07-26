@@ -4,5 +4,6 @@ kind: Kustomization
 resources:
 # - ./nginx-deployment.yaml # just for testing http://localhost:31000
 - ./namespaces.yaml
+- ./monitoring
 - ./kafka
 - ./my-app
