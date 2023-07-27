@@ -5,14 +5,14 @@ apiVersion: v1
 data:
   init.sh: |-
     #!/bin/bash
-    /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka-service.kafka.svc.cluster.local:9092 --create --topic astronaut_created --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists && \
-    /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka-service.kafka.svc.cluster.local:9092 --create --topic astronaut_updated --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists && \
-    /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka-service.kafka.svc.cluster.local:9092 --create --topic mission_created --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists && \
-    /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka-service.kafka.svc.cluster.local:9092 --create --topic mission_updated --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists && \
-    /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka-service.kafka.svc.cluster.local:9092 --create --topic crew_member_added --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists && \
-    /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka-service.kafka.svc.cluster.local:9092 --create --topic crew_member_removed --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists && \
-    /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka-service.kafka.svc.cluster.local:9092 --create --topic refresh_token_created --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists && \
-    /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka-service.kafka.svc.cluster.local:9092 --create --topic refresh_token_revoked --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists
+    /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka-service:9092 --create --topic astronaut_created --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists && \
+    /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka-service:9092 --create --topic astronaut_updated --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists && \
+    /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka-service:9092 --create --topic mission_created --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists && \
+    /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka-service:9092 --create --topic mission_updated --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists && \
+    /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka-service:9092 --create --topic crew_member_added --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists && \
+    /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka-service:9092 --create --topic crew_member_removed --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists && \
+    /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka-service:9092 --create --topic refresh_token_created --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists && \
+    /opt/bitnami/kafka/bin/kafka-topics.sh --bootstrap-server kafka-service:9092 --create --topic refresh_token_revoked --partitions 1 --replication-factor 1 --config cleanup.policy=compact --if-not-exists
 ---
 apiVersion: batch/v1
 kind: Job

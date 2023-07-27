@@ -2,17 +2,15 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kafka-ui-deployment
-  labels:
-    app: kafka-ui
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: kafka-ui
+      name: kafka-ui-deployment
   template:
     metadata:
       labels:
-        app: kafka-ui
+        name: kafka-ui-deployment
     spec:
       containers:
       - name: kafka-ui
@@ -23,17 +21,17 @@ spec:
         - name: KAFKA_CLUSTERS_0_NAME
           value: cluster0
         - name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
-          value: kafka-service.kafka.svc.cluster.local:9092
+          value: kafka-service:9092
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: kafka-ui-service
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
-    app: kafka-ui
+    name: kafka-ui-deployment
   ports:
   - protocol: TCP
     port: 8080
-    nodePort: 31001
+    targetPort: 8080

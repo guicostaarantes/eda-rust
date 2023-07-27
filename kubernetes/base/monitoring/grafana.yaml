@@ -11,7 +11,7 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: config-grafana
+  name: grafana-config
 data:
   grafana.ini: |
     [analytics]
@@ -31,7 +31,7 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: datasources-grafana
+  name: grafana-datasources-config
 data:
   loki.yaml: |-
     apiVersion: 1
@@ -39,7 +39,7 @@ data:
     - name: Loki
       type: loki
       access: proxy
-      url: "http://loki:3100"
+      url: "http://loki-service:3100"
       version: 1
       isDefault: true
       jsonData:
@@ -48,19 +48,19 @@ data:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: grafana
+  name: grafana-deployment
 spec:
   replicas: 1
   revisionHistoryLimit: 10
   selector:
     matchLabels:
-      app: grafana
+      name: grafana-deployment
   strategy:
     type: RollingUpdate
   template:
     metadata:
       labels:
-        app: grafana
+        name: grafana-deployment
     spec:
       securityContext:
         fsGroup: 472
@@ -68,18 +68,17 @@ spec:
         runAsUser: 472
       enableServiceLinks: true
       containers:
-        - name: grafana
+        - name: grafana-app
           image: grafana/grafana:10.0.3
           imagePullPolicy: IfNotPresent
           volumeMounts:
-            - name: config
-              mountPath: "/etc/grafana/grafana.ini"
-              subPath: grafana.ini
-            - name: storage
+            - name: grafana-config-volume
+              mountPath: "/etc/grafana"
+            - name: grafana-storage
               mountPath: "/var/lib/grafana"
-            - name: sc-dashboards-volume
+            - name: grafana-dashboards-volume
               mountPath: "/etc/grafana/provisioning/dashboards"
-            - name: sc-datasources-volume
+            - name: grafana-datasources-volume
               mountPath: "/etc/grafana/provisioning/datasources"
           ports:
             - name: grafana
@@ -116,27 +115,25 @@ spec:
               path: /api/health
               port: 3000
       volumes:
-        - name: config
+        - name: grafana-config-volume
           configMap:
-            name: config-grafana
-        - name: storage
+            name: grafana-config
+        - name: grafana-storage
           emptyDir: {}
-        - name: sc-dashboards-volume
+        - name: grafana-dashboards-volume
           emptyDir: {}
-        - name: sc-datasources-volume
+        - name: grafana-datasources-volume
           configMap:
-            name: datasources-grafana
+            name: grafana-datasources-config
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: grafana
+  name: grafana-service
 spec:
   type: ClusterIP
-  ports:
-    - name: service
-      port: 80
-      protocol: TCP
-      targetPort: 3000
   selector:
-    app: grafana
+    name: grafana-deployment
+  ports:
+    - protocol: TCP
+      port: 3000

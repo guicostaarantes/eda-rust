@@ -2,17 +2,15 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: kafka-deployment
-  labels:
-    app: kafka
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: kafka
+      name: kafka-deployment
   template:
     metadata:
       labels:
-        app: kafka
+        name: kafka-deployment
     spec:
       containers:
       - name: kafka
@@ -32,9 +30,7 @@ metadata:
 spec:
   type: ClusterIP
   selector:
-    app: kafka
+    name: kafka-deployment
   ports:
-  - name: "9092"
-    protocol: TCP
+  - protocol: TCP
     port: 9092
-    targetPort: 9092

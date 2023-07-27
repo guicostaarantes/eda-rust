@@ -1,28 +1,26 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: missions-msvc-deployment
-  labels:
-    app: missions-msvc
+  name: missions-deployment
 spec:
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
-      app: missions-msvc
+      name: missions-deployment
   template:
     metadata:
       labels:
-        app: missions-msvc
+        name: missions-deployment
     spec:
       containers:
-      - name: service
+      - name: missions-msvc
         image: k8s-missions-msvc:latest
         imagePullPolicy: Never
         ports:
         - containerPort: 8000
         resources:
           limits:
-            cpu: 500m
+            cpu: 250m
             memory: 200Mi
         env:
         - name: UNIQUE_POD_ID
@@ -36,8 +34,11 @@ spec:
         - name: MONGO_DATABASE
           value: missions-db
         - name: PUBLIC_KEYS_PEM
-          value: -----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4oghmhWVA6Ai/Z75BJQ9\nm4KTuwm+RY4ws/dpZswpOJcNG5Y1mDv21Tie+LWt3VrcyQei9HWU9GsGPNOTYZqE\nnstOYWiSMV90VVrjG+PAe98A21nvI5u+2F454XXb8IibzCysRw+pV1cAOs96s/6w\nZcA8FmRhIafXaqS772r4nOX0cm6yNCLemyz9k9oBFnFXPu5iyuj0k9Ll39+SHNXY\nk3nCj3BXW3bhoTyOxj4Nqp1nhssb/aezgrY1oHrqOZlaHWxPEh27D8tPqQgiKM1E\nWYPv8StQkuLDTw5Z4ofEkyjgZnpseqCAxmeixh3o3WemLNbGFLtKBjtRqxfFknR1\nfwIDAQAB\n-----END PUBLIC KEY-----\n
-      - name: mongo
+          valueFrom:
+            secretKeyRef:
+              name: jwt-keys
+              key: public-keys-pem
+      - name: missions-mongo
         image: mongo:latest
         ports:
         - containerPort: 27017
@@ -49,12 +50,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: missions-msvc-service
+  name: missions-service
 spec:
-  type: NodePort
+  type: ClusterIP
   selector:
-    app: missions-msvc
+    name: missions-deployment
   ports:
   - protocol: TCP
     port: 8000
-    nodePort: 30003

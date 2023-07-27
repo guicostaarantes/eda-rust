@@ -44,7 +44,7 @@ data:
       grpc_listen_port: 0
     
     clients:
-      - url: http://loki:3100/loki/api/v1/push
+      - url: http://loki-service:3100/loki/api/v1/push
     
     positions:
       filename: /run/promtail/positions.yaml
@@ -124,18 +124,15 @@ data:
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: promtail
-  namespace: default
-  labels:
-    app: promtail
+  name: promtail-daemonset
 spec:
   selector:
     matchLabels:
-      app: promtail
+      name: promtail-daemonset
   template:
     metadata:
       labels:
-        app: promtail
+        name: promtail-daemonset
     spec:
       serviceAccountName: promtail-service-account
       containers:
@@ -144,9 +141,9 @@ spec:
           args:
             - "-config.file=/etc/promtail/promtail.yaml"
           volumeMounts:
-            - name: config
+            - name: promtail-config
               mountPath: /etc/promtail
-            - name: run
+            - name: promtail-run
               mountPath: /run/promtail
             - name: containers
               mountPath: /var/lib/docker/containers
@@ -179,10 +176,10 @@ spec:
             successThreshold: 1
             timeoutSeconds: 1
       volumes:
-        - name: config
+        - name: promtail-config
           configMap:
             name: promtail-config
-        - name: run
+        - name: promtail-run
           hostPath:
             path: /run/promtail
         - name: containers

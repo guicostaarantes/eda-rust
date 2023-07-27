@@ -55,21 +55,20 @@ data:
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: loki
+  name: loki-sts
 spec:
   podManagementPolicy: OrderedReady
   replicas: 1
   selector:
     matchLabels:
-      app: loki
+      name: loki-sts
   serviceName: loki
   updateStrategy:
     type: RollingUpdate
   template:
     metadata:
       labels:
-        app: loki
-        name: loki
+        name: loki-sts
       annotations:
         prometheus.io/port: http-metrics
         prometheus.io/scrape: "true"
@@ -80,7 +79,7 @@ spec:
         runAsNonRoot: true
         runAsUser: 10001
       containers:
-        - name: loki
+        - name: loki-app
           image: grafana/loki:2.8.3
           imagePullPolicy: IfNotPresent
           args:
@@ -88,11 +87,10 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
-            - name: config
+            - name: loki-config
               mountPath: /etc/loki
-            - name: storage
+            - name: loki-storage
               mountPath: /data
-              subPath: 
           ports:
             - name: http-metrics
               containerPort: 3100
@@ -111,26 +109,23 @@ spec:
             readOnlyRootFilesystem: true
       terminationGracePeriodSeconds: 4800
       volumes:
-        - name: config
+        - name: loki-config
           configMap:
             name: loki-config
         - name: tmp
           emptyDir: {}
-        - name: storage
+        - name: loki-storage
           emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: loki
-  labels:
-    app: loki
+  name: loki-service
 spec:
   clusterIP: None
   selector:
-    app: loki
+    name: loki-sts
   ports:
     - port: 3100
       protocol: TCP
       name: http-metrics
-      targetPort: http-metrics
