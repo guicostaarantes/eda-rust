@@ -1,4 +1,3 @@
----
 apiVersion: v1
 kind: Secret
 metadata:
@@ -21,7 +20,7 @@ data:
     [log]
     mode = console
     [paths]
-    data = /var/lib/grafana/
+    data = /var/lib/grafana
     logs = /var/log/grafana
     plugins = /var/lib/grafana/plugins
     provisioning = /etc/grafana/provisioning
@@ -36,14 +35,14 @@ data:
   loki.yaml: |-
     apiVersion: 1
     datasources:
-    - name: Loki
-      type: loki
-      access: proxy
-      url: "http://loki-service:3100"
-      version: 1
-      isDefault: true
-      jsonData:
-        {}
+      - name: Loki
+        type: loki
+        access: proxy
+        url: "http://loki-service:3100"
+        version: 1
+        isDefault: true
+        jsonData:
+          {}
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -73,13 +72,13 @@ spec:
           imagePullPolicy: IfNotPresent
           volumeMounts:
             - name: grafana-config-volume
-              mountPath: "/etc/grafana"
+              mountPath: /etc/grafana
             - name: grafana-storage
-              mountPath: "/var/lib/grafana"
+              mountPath: /var/lib/grafana
             - name: grafana-dashboards-volume
-              mountPath: "/etc/grafana/provisioning/dashboards"
+              mountPath: /etc/grafana/provisioning/dashboards
             - name: grafana-datasources-volume
-              mountPath: "/etc/grafana/provisioning/datasources"
+              mountPath: /etc/grafana/provisioning/datasources
           ports:
             - name: grafana
               containerPort: 3000

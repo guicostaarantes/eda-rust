@@ -25,16 +25,16 @@ spec:
     spec:
       restartPolicy: OnFailure
       containers:
-      - name: kafka-init
-        image: bitnami/kafka:3.5
-        volumeMounts:
-        - name: kafka-config
-          mountPath: /etc/scripts
-        command: ['/bin/bash', '/etc/scripts/init-script.sh']
+        - name: kafka-init
+          image: bitnami/kafka:3.5
+          volumeMounts:
+            - name: kafka-config
+              mountPath: /etc/scripts
+          command: ["/bin/bash", "/etc/scripts/init-script.sh"]
       volumes:
-      - name: kafka-config
-        configMap:
-          name: kafka-config
-          items:
-          - key: init.sh
-            path: init-script.sh
+        - name: kafka-config
+          configMap:
+            name: kafka-config
+            items:
+              - key: init.sh
+                path: init-script.sh

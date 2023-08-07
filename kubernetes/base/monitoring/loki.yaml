@@ -27,16 +27,16 @@ data:
       reject_old_samples_max_age: 168h
     memberlist:
       join_members:
-      - 'loki-memberlist'
+        - 'loki-memberlist'
     schema_config:
       configs:
-      - from: "2020-10-24"
-        index:
-          period: 24h
-          prefix: index_
-        object_store: filesystem
-        schema: v11
-        store: boltdb-shipper
+        - from: "2020-10-24"
+          index:
+            period: 24h
+            prefix: index_
+          object_store: filesystem
+          schema: v11
+          store: boltdb-shipper
     server:
       http_listen_port: 3100
       grpc_listen_port: 0

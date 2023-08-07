@@ -13,39 +13,39 @@ spec:
         name: missions-deployment
     spec:
       containers:
-      - name: missions-msvc
-        image: k8s-missions-msvc:latest
-        imagePullPolicy: Never
-        ports:
-        - containerPort: 8000
-        resources:
-          limits:
-            cpu: 250m
-            memory: 200Mi
-        env:
-        - name: UNIQUE_POD_ID
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.name
-        - name: KAFKA_URL
-          value: kafka-service.kafka.svc.cluster.local:9092
-        - name: MONGO_URL
-          value: mongodb://localhost:27017/missions-db
-        - name: MONGO_DATABASE
-          value: missions-db
-        - name: PUBLIC_KEYS_PEM
-          valueFrom:
-            secretKeyRef:
-              name: jwt-keys
-              key: public-keys-pem
-      - name: missions-mongo
-        image: mongo:latest
-        ports:
-        - containerPort: 27017
-        resources:
-          limits:
-            cpu: 250m
-            memory: 200Mi
+        - name: missions-msvc
+          image: k8s-missions-msvc:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8000
+          resources:
+            limits:
+              cpu: 250m
+              memory: 200Mi
+          env:
+            - name: UNIQUE_POD_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: KAFKA_URL
+              value: kafka-service.kafka.svc.cluster.local:9092
+            - name: MONGO_URL
+              value: mongodb://localhost:27017/missions-db
+            - name: MONGO_DATABASE
+              value: missions-db
+            - name: PUBLIC_KEYS_PEM
+              valueFrom:
+                secretKeyRef:
+                  name: jwt-keys
+                  key: public-keys-pem
+        - name: missions-mongo
+          image: mongo:latest
+          ports:
+            - containerPort: 27017
+          resources:
+            limits:
+              cpu: 250m
+              memory: 200Mi
 ---
 apiVersion: v1
 kind: Service
@@ -56,5 +56,5 @@ spec:
   selector:
     name: missions-deployment
   ports:
-  - protocol: TCP
-    port: 8000
+    - protocol: TCP
+      port: 8000

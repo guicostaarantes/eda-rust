@@ -3,7 +3,7 @@ kind: Kustomization
 
 namespace: my-app
 resources:
-- ./jwt-keys.yaml
-- ./auth-msvc-deployment.yaml
-- ./astronauts-msvc-deployment.yaml
-- ./missions-msvc-deployment.yaml
+  - ./jwt-keys.yaml
+  - ./auth-msvc-deployment.yaml
+  - ./astronauts-msvc-deployment.yaml
+  - ./missions-msvc-deployment.yaml
