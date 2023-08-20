@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: echo-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: echo-deployment
+  template:
+    metadata:
+      labels:
+        name: echo-deployment
+    spec:
+      containers:
+        - name: echo
+          image: hashicorp/http-echo:0.2.3
+          args:
+            - "-text=it-works"
+          ports:
+            - containerPort: 5678
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo-service
+spec:
+  type: ClusterIP
+  selector:
+    name: echo-deployment
+  ports:
+    - protocol: TCP
+      port: 5678
+---
+kind: Ingress
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: echo-ingress
+spec:
+  rules:
+    - host: localhost
+      http:
+        paths:
+          - pathType: Prefix
+            path: /echo
+            backend:
+              service:
+                name: echo-service
+                port:
+                  number: 5678

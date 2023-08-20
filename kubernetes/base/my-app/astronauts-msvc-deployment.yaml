@@ -14,8 +14,8 @@ spec:
     spec:
       containers:
         - name: astronauts-msvc
-          image: k8s-astronauts-msvc:latest
-          imagePullPolicy: Never
+          image: localhost:5001/astronauts-msvc:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
           resources:

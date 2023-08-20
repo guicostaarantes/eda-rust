@@ -14,8 +14,8 @@ spec:
     spec:
       containers:
         - name: auth-msvc
-          image: k8s-auth-msvc:latest
-          imagePullPolicy: Never
+          image: localhost:5001/auth-msvc:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
           resources:

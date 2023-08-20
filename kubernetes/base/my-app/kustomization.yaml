@@ -7,3 +7,4 @@ resources:
   - ./auth-msvc-deployment.yaml
   - ./astronauts-msvc-deployment.yaml
   - ./missions-msvc-deployment.yaml
+  - ./ingress.yaml

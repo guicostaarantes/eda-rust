@@ -6,3 +6,4 @@ resources:
   - ./kafka-config.yaml
   - ./kafka-sts.yaml
   - ./kafka-ui.yaml
+  - ./ingress.yaml

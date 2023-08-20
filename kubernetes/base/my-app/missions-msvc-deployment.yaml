@@ -14,8 +14,8 @@ spec:
     spec:
       containers:
         - name: missions-msvc
-          image: k8s-missions-msvc:latest
-          imagePullPolicy: Never
+          image: localhost:5001/missions-msvc:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
           resources:

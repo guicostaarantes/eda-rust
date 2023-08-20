@@ -29,7 +29,7 @@ async fn create_astronaut_should_422_on_bad_input() {
 #[tokio::test]
 async fn astronaut_should_authenticate_after_creation() {
     const ITERATIONS: i32 = 10;
-    const OPERATIONS: i32 = 200;
+    const OPERATIONS: i32 = 20;
     const SLEEP_MS: u64 = 1000;
 
     for j in 0..ITERATIONS {

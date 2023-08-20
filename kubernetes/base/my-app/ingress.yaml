@@ -1,0 +1,33 @@
+kind: Ingress
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: my-app-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  rules:
+    - host: my-app.local
+      http:
+        paths:
+          - pathType: Prefix
+            path: /auth(/|$)(.*)
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 8000
+          - pathType: Prefix
+            path: /astronauts(/|$)(.*)
+            backend:
+              service:
+                name: astronauts-service
+                port:
+                  number: 8000
+          - pathType: Prefix
+            path: /missions(/|$)(.*)
+            backend:
+              service:
+                name: missions-service
+                port:
+                  number: 8000
