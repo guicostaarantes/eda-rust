@@ -1,0 +1,6 @@
+- op: test
+  path: /spec/rules/0/host
+  value: kafka-ui-host
+- op: replace
+  path: /spec/rules/0/host
+  value: kafka.local

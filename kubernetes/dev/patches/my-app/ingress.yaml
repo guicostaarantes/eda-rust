@@ -1,0 +1,6 @@
+- op: test
+  path: /spec/rules/0/host
+  value: my-app-host
+- op: replace
+  path: /spec/rules/0/host
+  value: my-app.local

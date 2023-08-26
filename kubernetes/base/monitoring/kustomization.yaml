@@ -6,3 +6,4 @@ resources:
   - ./promtail.yaml
   - ./loki.yaml
   - ./grafana.yaml
+  - ./ingress.yaml

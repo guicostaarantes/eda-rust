@@ -4,3 +4,29 @@ kind: Kustomization
 resources:
   - ./kind-ingress-controller.yaml
   - ../base
+
+patches:
+  - path: ./patches/kafka/ingress.yaml
+    target:
+      kind: Ingress
+      name: kafka-ingress
+  - path: ./patches/monitoring/ingress.yaml
+    target:
+      kind: Ingress
+      name: monitoring-ingress
+  - path: ./patches/my-app/astronauts-msvc-deployment.yaml
+    target:
+      kind: Deployment
+      name: astronauts-deployment
+  - path: ./patches/my-app/auth-msvc-deployment.yaml
+    target:
+      kind: Deployment
+      name: auth-deployment
+  - path: ./patches/my-app/missions-msvc-deployment.yaml
+    target:
+      kind: Deployment
+      name: missions-deployment
+  - path: ./patches/my-app/ingress.yaml
+    target:
+      kind: Ingress
+      name: my-app-ingress

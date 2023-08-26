@@ -1,0 +1,25 @@
+- op: test
+  path: /spec/template/spec/containers/0/name
+  value: auth-msvc
+- op: replace
+  path: /spec/template/spec/containers/0/image
+  value: localhost:5001/auth-msvc:latest
+- op: replace
+  path: /spec/template/spec/containers/0/imagePullPolicy
+  value: IfNotPresent
+- op: add
+  path: /spec/template/spec/containers/0/resources
+  value:
+    limits:
+      cpu: 250m
+      memory: 200Mi
+
+- op: test
+  path: /spec/template/spec/containers/1/name
+  value: auth-mongo
+- op: add
+  path: /spec/template/spec/containers/1/resources
+  value:
+    limits:
+      cpu: 250m
+      memory: 200Mi
