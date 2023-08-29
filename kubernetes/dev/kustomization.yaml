@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - ./kind-ingress-controller.yaml
+  - ./secrets
   - ../base
 
 patches:

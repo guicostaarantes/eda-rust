@@ -1,13 +1,4 @@
 apiVersion: v1
-kind: Secret
-metadata:
-  name: grafana-admin-credentials
-type: Opaque
-data:
-  admin-user: "YWRtaW4="
-  admin-password: "YWRtaW4="
----
-apiVersion: v1
 kind: ConfigMap
 metadata:
   name: grafana-config
@@ -85,15 +76,12 @@ spec:
               protocol: TCP
           env:
             - name: GF_SECURITY_ADMIN_USER
-              valueFrom:
-                secretKeyRef:
-                  name: grafana-admin-credentials
-                  key: admin-user
+              value: admin
             - name: GF_SECURITY_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: grafana-admin-credentials
-                  key: admin-password
+                  name: grafana-admin-password
+                  key: grafana.pwd
             - name: GF_PATHS_DATA
               value: /var/lib/grafana/
             - name: GF_PATHS_LOGS

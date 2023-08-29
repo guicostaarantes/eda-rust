@@ -33,12 +33,12 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: jwt-keys
-                  key: public-keys-pem
+                  key: jwt.pub
             - name: PRIVATE_KEY_PEM
               valueFrom:
                 secretKeyRef:
                   name: jwt-keys
-                  key: private-key-pem
+                  key: jwt.key
         - name: auth-mongo
           image: mongo:latest
           ports:

@@ -33,7 +33,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: jwt-keys
-                  key: public-keys-pem
+                  key: jwt.pub
         - name: astronauts-mongo
           image: mongo:latest
           ports:
