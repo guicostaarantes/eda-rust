@@ -5,5 +5,6 @@ namespace: monitoring
 resources:
   - ./promtail.yaml
   - ./loki.yaml
+  - ./prometheus_stack.yaml
   - ./grafana.yaml
   - ./ingress.yaml

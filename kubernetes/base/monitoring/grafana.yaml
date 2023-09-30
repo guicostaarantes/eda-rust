@@ -117,6 +117,8 @@ apiVersion: v1
 kind: Service
 metadata:
   name: grafana-service
+  annotations:
+    prometheus.io/scrape: "true"
 spec:
   type: ClusterIP
   selector:
