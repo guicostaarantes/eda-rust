@@ -21,6 +21,199 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
+  name: grafana-dashboards
+data:
+  health-my-app.json: |-
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": {
+              "type": "grafana",
+              "uid": "-- Grafana --"
+            },
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "none"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 15,
+            "w": 12,
+            "x": 0,
+            "y": 0
+          },
+          "id": 1,
+          "interval": "2s",
+          "maxDataPoints": 1000,
+          "options": {
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": false,
+            "text": {}
+          },
+          "pluginVersion": "10.0.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "rate(container_cpu_usage_seconds_total{namespace=\"my-app\",container!=\"\"}[1m])",
+              "key": "Q-55497b80-3a0f-4f4d-ac86-59f60a4777ac-0",
+              "legendFormat": "{{container}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "CPU usage of my-app containers",
+          "type": "gauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "mbytes"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 15,
+            "w": 12,
+            "x": 12,
+            "y": 0
+          },
+          "id": 2,
+          "interval": "2s",
+          "maxDataPoints": 1000,
+          "options": {
+            "orientation": "auto",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": false,
+            "text": {}
+          },
+          "pluginVersion": "10.0.3",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+              },
+              "editorMode": "code",
+              "expr": "container_memory_usage_bytes{namespace=\"my-app\",container!=\"\"} / 2^20",
+              "key": "Q-55497b80-3a0f-4f4d-ac86-59f60a4777ac-0",
+              "legendFormat": "{{container}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Memory consumption of my-app containers",
+          "type": "gauge"
+        }
+      ],
+      "refresh": "5s",
+      "schemaVersion": 38,
+      "style": "dark",
+      "tags": [],
+      "templating": {
+        "list": []
+      },
+      "time": {
+        "from": "now-1m",
+        "to": "now"
+      },
+      "timepicker": {},
+      "timezone": "",
+      "title": "Health of my-app",
+      "uid": "d7934e07-ad2c-46e9-b71c-85af4370280b",
+      "version": 1,
+      "weekStart": ""
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-config
+data:
+  default.yaml: |-
+    apiVersion: 1
+    providers:
+      - name: Default
+        folder: Defined by Kubernetes
+        type: file
+        options:
+          path:
+            /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
   name: grafana-datasources-config
 data:
   loki.yaml: |-
@@ -32,6 +225,12 @@ data:
         url: "http://loki-service:3100"
         version: 1
         isDefault: true
+        jsonData:
+          {}
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: "http://prometheus-server:80"
         jsonData:
           {}
 ---
@@ -66,6 +265,8 @@ spec:
               mountPath: /etc/grafana
             - name: grafana-storage
               mountPath: /var/lib/grafana
+            - name: grafana-dashboards-storage
+              mountPath: /var/lib/grafana/dashboards
             - name: grafana-dashboards-volume
               mountPath: /etc/grafana/provisioning/dashboards
             - name: grafana-datasources-volume
@@ -107,8 +308,12 @@ spec:
             name: grafana-config
         - name: grafana-storage
           emptyDir: {}
+        - name: grafana-dashboards-storage
+          configMap:
+            name: grafana-dashboards
         - name: grafana-dashboards-volume
-          emptyDir: {}
+          configMap:
+            name: grafana-dashboards-config
         - name: grafana-datasources-volume
           configMap:
             name: grafana-datasources-config
